@@ -80,6 +80,24 @@
                         {{ t('admin.channelAccounts.remove') }}
                       </Button>
                     </div>
+                    <!-- omnichannel: why and when the account dropped, as reported by the bot -->
+                    <details v-if="account.history?.length" class="basis-full pl-12 text-xs">
+                      <summary class="cursor-pointer text-muted-foreground select-none">
+                        {{ t('admin.channelAccounts.history', { count: account.history.length }) }}
+                      </summary>
+                      <ul class="mt-2 space-y-1">
+                        <li v-for="(entry, i) in historyEntries(account, locale)" :key="i" class="flex gap-2">
+                          <span class="w-24 shrink-0 tabular-nums text-muted-foreground">{{ entry.at }}</span>
+                          <span>{{ entry.icon }}</span>
+                          <span :class="entry.tone">
+                            {{ entry.message }}
+                            <span v-if="entry.count" class="text-muted-foreground">
+                              ({{ t('admin.channelAccounts.historyRepeat', { count: entry.count, at: entry.lastAt }) }})
+                            </span>
+                          </span>
+                        </li>
+                      </ul>
+                    </details>
                   </li>
                 </ul>
               </CardContent>
@@ -234,6 +252,7 @@ import {
   accountStatus,
   displayName,
   errorMessage,
+  historyEntries,
   isLoginFinished,
   isValidAccountName,
   needsSignIn
@@ -245,7 +264,7 @@ const LIST_REFRESH_MS = 10000
 const LOGIN_POLL_MS = 2000
 const CLOSE_AFTER_SUCCESS_MS = 1500
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const emitter = useEmitter()
 const isLoading = ref(false)

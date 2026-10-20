@@ -70,3 +70,30 @@ export function countAccountAlerts (channels) {
     0
   )
 }
+
+// Connection history from the bot (newest first): {at, kind, message, count?,
+// last_at?}. Each kind gets an icon so the cause of a drop is easy to scan.
+const HISTORY_KINDS = {
+  connected: { icon: '🟢', tone: 'text-muted-foreground' },
+  manual: { icon: '🔁', tone: 'text-muted-foreground' },
+  network: { icon: '📶', tone: 'text-amber-600 dark:text-amber-400' },
+  disconnected: { icon: '🟠', tone: 'text-amber-600 dark:text-amber-400' },
+  platform: { icon: '⚠️', tone: 'text-destructive' },
+  session_expired: { icon: '🔴', tone: 'text-destructive' }
+}
+
+export function historyEntries (account, locale) {
+  const time = (value) => {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime())
+      ? ''
+      : date.toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  }
+  return (Array.isArray(account?.history) ? account.history : []).map((item) => ({
+    ...(HISTORY_KINDS[item.kind] || HISTORY_KINDS.disconnected),
+    at: time(item.at),
+    lastAt: item.count > 1 ? time(item.last_at) : '',
+    count: item.count > 1 ? item.count : 0,
+    message: item.message || ''
+  }))
+}

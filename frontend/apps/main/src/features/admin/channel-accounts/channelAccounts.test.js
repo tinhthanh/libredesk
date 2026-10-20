@@ -5,6 +5,7 @@ import {
   accountStatus,
   displayName,
   errorMessage,
+  historyEntries,
   isLoginFinished,
   isValidAccountName,
   needsSignIn,
@@ -62,5 +63,23 @@ describe('channel accounts helpers', () => {
     ]
     expect(countAccountAlerts(channels)).toBe(2)
     expect(countAccountAlerts(null)).toBe(0)
+  })
+
+  it('lists connection history with an icon per cause and repeat counts', () => {
+    const account = {
+      history: [
+        { at: '2026-10-20T12:37:23Z', kind: 'session_expired', message: 'Facebook đã huỷ phiên' },
+        { at: '2026-10-20T12:35:37Z', kind: 'network', message: 'mất mạng', count: 3, last_at: '2026-10-20T12:36:00Z' },
+        { at: 'bad', kind: 'weird' }
+      ]
+    }
+    const entries = historyEntries(account, 'vi-VN')
+    expect(entries.map((e) => e.icon)).toEqual(['🔴', '📶', '🟠'])
+    expect(entries[0].message).toBe('Facebook đã huỷ phiên')
+    expect(entries[0].count).toBe(0)
+    expect(entries[1].count).toBe(3)
+    expect(entries[1].lastAt).not.toBe('')
+    expect(entries[2].at).toBe('')
+    expect(historyEntries({}, 'vi-VN')).toEqual([])
   })
 })

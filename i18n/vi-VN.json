@@ -547,6 +547,8 @@
   "admin.channelAccounts.recipientFacebook": "ID hoặc link hồ sơ Facebook",
   "admin.channelAccounts.firstMessage": "Tin nhắn đầu tiên",
   "admin.channelAccounts.sendFirst": "Tìm và gửi",
+  "admin.channelAccounts.history": "Lịch sử kết nối ({count})",
+  "admin.channelAccounts.historyRepeat": "lặp {count} lần, lần cuối {at}",
   "admin.channelAccounts.reconnect": "Kết nối lại",
   "admin.channelAccounts.relogin": "Đăng nhập lại",
   "admin.channelAccounts.remove": "Gỡ",

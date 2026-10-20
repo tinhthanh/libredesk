@@ -547,6 +547,8 @@
   "admin.channelAccounts.recipientFacebook": "Facebook ID or profile link",
   "admin.channelAccounts.firstMessage": "First message",
   "admin.channelAccounts.sendFirst": "Find and send",
+  "admin.channelAccounts.history": "Connection history ({count})",
+  "admin.channelAccounts.historyRepeat": "{count} times, last at {at}",
   "admin.channelAccounts.reconnect": "Reconnect",
   "admin.channelAccounts.relogin": "Sign in again",
   "admin.channelAccounts.remove": "Remove",
