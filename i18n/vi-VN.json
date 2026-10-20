@@ -738,6 +738,7 @@
   "conversation.editMessage": "Sửa tin",
   "conversation.editHint": "Khách sẽ thấy nội dung mới trên Facebook. Bản gốc vẫn giữ ở đây và có ghi chú nội bộ ghi lại thay đổi.",
   "conversation.editedTo": "Đã sửa thành: {text}",
+  "conversation.seenByCustomer": "Đã xem",
   "conversation.sidebar.contactAttributes": "Thuộc tính khách hàng",
   "conversation.sidebar.information": "Thông tin",
   "conversation.sidebar.lastVisitedPages": "Trang đã truy cập gần đây",

@@ -43,6 +43,7 @@
                 :direction="row.message.type"
                 :group-with-prev="row.groupWithPrev"
                 :group-with-next="row.groupWithNext"
+                :seen="row.message.uuid === lastSeenUUID"
               />
             </div>
             <div v-else-if="row.message.type === 'outgoing' && row.message.private">
@@ -83,7 +84,8 @@
 </template>
 
 <script setup>
-import { groupSender } from '@main/utils/omnichannel.js'
+import { groupSender, isOmnichannelInbox } from '@main/utils/omnichannel.js'
+import api from '@main/api'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import MessageBubble from './MessageBubble.vue'
@@ -184,7 +186,52 @@ onMounted(() => {
   emitter.on(EMITTER_EVENTS.NEW_MESSAGE, newMessageHandler)
 })
 
+// omnichannel: customer "seen" and "typing" from the gateway, polled while a
+// Zalo/Facebook conversation is open (Libredesk's own typing indicator is reused).
+const PRESENCE_POLL_MS = 4000
+const presence = ref({ conversationUUID: '', readAt: '', readUUID: '' })
+let presenceTimer = null
+const pollPresence = async () => {
+  const conv = conversationStore.current
+  if (!conv?.uuid || !isOmnichannelInbox(conv)) return
+  try {
+    const { data } = await api.getChannelPresence(conv.uuid)
+    if (conversationStore.current?.uuid !== conv.uuid) return
+    presence.value = { conversationUUID: conv.uuid, readAt: data.read_at || '', readUUID: data.read_uuid || '' }
+    if (conversationStore.conversation.isTyping !== !!data.typing) conversationStore.conversation.isTyping = !!data.typing
+  } catch {
+    // Gateway chưa hỗ trợ / lỗi mạng: bỏ qua, lần sau hỏi lại.
+  }
+}
+watch(
+  () => conversationStore.current?.uuid,
+  () => {
+    clearInterval(presenceTimer)
+    presence.value = { conversationUUID: '', readAt: '', readUUID: '' }
+    if (isOmnichannelInbox(conversationStore.current)) {
+      pollPresence()
+      presenceTimer = setInterval(pollPresence, PRESENCE_POLL_MS)
+    }
+  },
+  { immediate: true }
+)
+// The latest agent reply the customer has seen: the exact message when the
+// platform reports ids, otherwise the last one sent before the read time.
+const lastSeenUUID = computed(() => {
+  const p = presence.value
+  if (!p.readAt || p.conversationUUID !== conversationStore.current?.uuid) return ''
+  const sent = conversationStore.conversationMessages.filter((m) => m.type === 'outgoing' && !m.private)
+  if (p.readUUID && sent.some((m) => m.uuid === p.readUUID)) {
+    const idx = sent.findIndex((m) => m.uuid === p.readUUID)
+    const later = sent.slice(idx + 1).filter((m) => new Date(m.created_at) <= new Date(p.readAt))
+    return later.length ? later[later.length - 1].uuid : p.readUUID
+  }
+  const before = sent.filter((m) => new Date(m.created_at) <= new Date(p.readAt))
+  return before.length ? before[before.length - 1].uuid : ''
+})
+
 onUnmounted(() => {
+  clearInterval(presenceTimer)
   emitter.off(EMITTER_EVENTS.NEW_MESSAGE, newMessageHandler)
 })
 

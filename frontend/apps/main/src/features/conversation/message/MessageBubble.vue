@@ -171,6 +171,10 @@
             <!-- CSAT Response -->
             <CSATResponseDisplay :message="message" />
 
+            <!-- omnichannel: the customer has seen up to this reply -->
+            <div v-if="seen && isOutgoing" class="text-xs text-muted-foreground self-end">
+              {{ t('conversation.seenByCustomer') }}
+            </div>
             <!-- omnichannel: edited on Facebook in this session -->
             <div v-if="editedText" class="text-xs italic text-muted-foreground self-end">
               {{ t('conversation.editedTo', { text: editedText }) }}
@@ -402,6 +406,8 @@ onMounted(async () => {
 })
 
 const props = defineProps({
+  // omnichannel: last agent reply the customer has seen
+  seen: { type: Boolean, default: false },
   message: Object,
   direction: {
     type: String,
