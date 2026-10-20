@@ -537,7 +537,7 @@
   "admin.channelAccounts.add": "Add account",
   "admin.channelAccounts.cancelLogin": "Cancel sign-in",
   "admin.channelAccounts.empty": "No accounts yet.",
-  "admin.channelAccounts.help": "Link Zalo and Facebook accounts to the inbox. Each account gets its own inbox; messages arrive as soon as the account is connected. Zalo: scan the QR code with the Zalo app. Facebook: sign in inside the embedded browser.",
+  "admin.channelAccounts.help": "Link Zalo, Facebook and Fanpage accounts to the inbox. Each account gets its own inbox; messages arrive as soon as the account is connected. Zalo: scan the QR code with the Zalo app. Facebook: sign in inside the embedded browser. Fanpage: paste a Page token.",
   "admin.channelAccounts.invalidName": "Invalid account name.",
   "admin.channelAccounts.loginDone": "Account connected.",
   "admin.channelAccounts.needsAttention": "{count} channel account(s) need attention",

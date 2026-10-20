@@ -537,7 +537,7 @@
   "admin.channelAccounts.add": "Thêm tài khoản",
   "admin.channelAccounts.cancelLogin": "Huỷ đăng nhập",
   "admin.channelAccounts.empty": "Chưa có tài khoản nào.",
-  "admin.channelAccounts.help": "Liên kết tài khoản Zalo và Facebook với hộp thư. Mỗi tài khoản có hộp thư riêng; tin nhắn về ngay khi tài khoản được kết nối. Zalo: quét mã QR bằng ứng dụng Zalo. Facebook: đăng nhập trong trình duyệt nhúng.",
+  "admin.channelAccounts.help": "Liên kết tài khoản Zalo, Facebook và Fanpage với hộp thư. Mỗi tài khoản có hộp thư riêng; tin nhắn về ngay khi tài khoản được kết nối. Zalo: quét mã QR bằng ứng dụng Zalo. Facebook: đăng nhập trong trình duyệt nhúng. Fanpage: dán token Trang.",
   "admin.channelAccounts.invalidName": "Tên tài khoản không hợp lệ.",
   "admin.channelAccounts.loginDone": "Đã kết nối tài khoản.",
   "admin.channelAccounts.needsAttention": "{count} tài khoản kênh cần xử lý",
