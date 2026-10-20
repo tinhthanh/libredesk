@@ -76,6 +76,10 @@
                 <Trash2 class="mr-2 h-4 w-4" />
                 {{ t('conversation.deletePrivateNote') }}
               </DropdownMenuItem>
+              <DropdownMenuItem v-if="canEdit" @click="openEdit">
+                <Pencil class="mr-2 h-4 w-4" />
+                {{ t('conversation.editMessage') }}
+              </DropdownMenuItem>
               <DropdownMenuItem
                 v-if="canRecall"
                 class="text-destructive focus:text-destructive"
@@ -167,6 +171,10 @@
             <!-- CSAT Response -->
             <CSATResponseDisplay :message="message" />
 
+            <!-- omnichannel: edited on Facebook in this session -->
+            <div v-if="editedText" class="text-xs italic text-muted-foreground self-end">
+              {{ t('conversation.editedTo', { text: editedText }) }}
+            </div>
             <!-- omnichannel: recalled on Zalo/Facebook in this session -->
             <div v-if="recalled" class="text-xs italic text-muted-foreground self-end">
               {{ t('conversation.recalled') }}
@@ -269,6 +277,20 @@
     </div>
   </div>
 
+  <Dialog :open="editOpen" @update:open="editOpen = $event">
+    <DialogContent class="sm:max-w-[480px]">
+      <DialogHeader>
+        <DialogTitle>{{ t('conversation.editMessage') }}</DialogTitle>
+        <DialogDescription>{{ t('conversation.editHint') }}</DialogDescription>
+      </DialogHeader>
+      <Textarea v-model="editDraft" rows="4" />
+      <DialogFooter>
+        <Button variant="outline" @click="editOpen = false">{{ t('globals.messages.cancel') }}</Button>
+        <Button :disabled="editSaving || !editDraft.trim()" @click="saveEdit">{{ t('globals.messages.save') }}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
   <AlertDialog :open="recallOpen" @update:open="recallOpen = $event">
     <AlertDialogContent>
       <AlertDialogHeader>
@@ -303,7 +325,7 @@ import { computed, ref, onMounted, nextTick } from 'vue'
 import { useConversationStore } from '@main/stores/conversation'
 import { useUserStore } from '@main/stores/user'
 import { useI18n } from 'vue-i18n'
-import { Lock, Mail, RotateCcw, Check, Maximize2, Trash2, MoreHorizontal, Reply, Undo2 } from 'lucide-vue-next'
+import { Lock, Mail, RotateCcw, Check, Maximize2, Trash2, MoreHorizontal, Reply, Undo2, Pencil } from 'lucide-vue-next'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -321,6 +343,15 @@ import {
   AlertDialogTitle
 } from '@shared-ui/components/ui/alert-dialog'
 import { Button } from '@shared-ui/components/ui/button'
+import { Textarea } from '@shared-ui/components/ui/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@shared-ui/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shared-ui/components/ui/tooltip'
 import { Spinner } from '@shared-ui/components/ui/spinner'
 import { formatMessageTimestamp, formatFullTimestamp } from '@shared-ui/utils/datetime.js'
@@ -487,6 +518,29 @@ const canRecall = computed(
     ['agent', 'ai_assistant'].includes(props.message.sender_type) &&
     isOmnichannelInbox(convStore.current)
 )
+// omnichannel: Facebook lets the sender edit a sent message (Zalo does not).
+const editOpen = ref(false)
+const editDraft = ref('')
+const editSaving = ref(false)
+const editedText = ref('')
+const canEdit = computed(() => canRecall.value && /^Facebook - /.test(convStore.current?.inbox_name || ''))
+const openEdit = () => {
+  editDraft.value = editedText.value || props.message.text_content || ''
+  editOpen.value = true
+}
+const saveEdit = async () => {
+  editSaving.value = true
+  try {
+    const text = editDraft.value.trim()
+    await api.editChannelMessage(props.message.uuid, text)
+    editedText.value = text
+    editOpen.value = false
+  } catch (error) {
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: errorMessage(error) })
+  } finally {
+    editSaving.value = false
+  }
+}
 const recallMessage = async () => {
   recallOpen.value = false
   try {
