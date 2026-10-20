@@ -57,3 +57,16 @@ export function errorMessage (error) {
 export function displayName (account) {
   return account?.profile?.displayName || account?.name || ''
 }
+
+// Accounts that need an admin: signed out, or dropped after giving up retrying.
+export function accountNeedsAttention (account) {
+  return needsSignIn(account) || account?.state === 'dropped'
+}
+
+// countAccountAlerts counts such accounts across the /gw/accounts channels.
+export function countAccountAlerts (channels) {
+  return (channels || []).reduce(
+    (n, c) => n + (c.accounts || []).filter(accountNeedsAttention).length,
+    0
+  )
+}

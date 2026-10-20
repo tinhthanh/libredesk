@@ -3,8 +3,14 @@
     <Tooltip>
       <TooltipTrigger as-child>
         <SidebarMenuButton asChild :isActive="item.isActive">
-          <router-link :to="item.to">
+          <router-link :to="item.to" class="relative">
             <component :is="item.icon" />
+            <!-- omnichannel: a channel account needs attention -->
+            <span
+              v-if="item.alert"
+              class="absolute right-1 top-1 size-2 rounded-full bg-destructive"
+              :aria-label="t('admin.channelAccounts.needsAttention', { count: alertCount })"
+            />
             <span v-if="variant === 'drawer'">{{ item.label }}</span>
           </router-link>
         </SidebarMenuButton>
@@ -26,6 +32,7 @@ import { SidebarMenuButton, SidebarMenuItem } from '@shared-ui/components/ui/sid
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shared-ui/components/ui/tooltip'
 import { useIsMobile } from '@shared-ui/composables'
 import { useUserStore } from '@main/stores/user'
+import { useChannelAlerts } from '@main/features/admin/channel-accounts/useChannelAlerts.js'
 
 defineProps({
   // 'rail' (desktop icon rail) or 'drawer' (mobile nav drawer).
@@ -38,6 +45,7 @@ const userStore = useUserStore()
 const isMobile = useIsMobile()
 
 const lastInboxPath = useStorage('lastInboxPath', '')
+const alertCount = useChannelAlerts(userStore.can('inboxes:manage'))
 
 const inboxTarget = computed(() => {
   if (!lastInboxPath.value) return { name: 'inboxes' }
@@ -77,6 +85,7 @@ const items = computed(() =>
       label: t('globals.terms.admin'),
       to: { name: userStore.can('general_settings:manage') ? 'general' : 'admin' },
       isActive: route.path.startsWith('/admin'),
+      alert: alertCount.value > 0,
       show: userStore.hasAdminTabPermissions
     }
   ].filter((item) => item.show)

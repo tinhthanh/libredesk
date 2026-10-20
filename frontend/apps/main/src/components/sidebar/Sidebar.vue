@@ -116,6 +116,7 @@ import { useStorage } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@main/stores/user'
+import { channelAlertCount } from '@main/features/admin/channel-accounts/useChannelAlerts.js'
 import { useConversationStore } from '@main/stores/conversation'
 import { useIsMobile } from '@shared-ui/composables'
 
@@ -393,6 +394,13 @@ const viewToDelete = ref(null)
                           <router-link :to="child.href">
                             <component :is="navIconMap[child.icon]" v-if="child.icon" />
                             <span>{{ t(child.titleKey, child.isTitleKeyPlural === true ? 2 : 1) }}</span>
+                            <!-- omnichannel: accounts that need attention -->
+                            <span
+                              v-if="child.href === '/admin/channel-accounts' && channelAlertCount > 0"
+                              class="ml-auto rounded-full bg-destructive px-1.5 text-[10px] font-medium leading-4 text-destructive-foreground"
+                            >
+                              {{ channelAlertCount }}
+                            </span>
                           </router-link>
                         </SidebarMenuButton>
                       </SidebarMenuSubItem>

@@ -201,6 +201,7 @@ import {
   needsSignIn
 } from '../../../features/admin/channel-accounts/channelAccounts.js'
 import api from '../../../api/index.js'
+import { setChannelAlerts } from '../../../features/admin/channel-accounts/useChannelAlerts.js'
 
 const LIST_REFRESH_MS = 10000
 const LOGIN_POLL_MS = 2000
@@ -228,6 +229,7 @@ async function loadAccounts () {
   try {
     const resp = await api.getChannelAccounts()
     channels.value = (resp.data || []).map((c) => ({ ...c, accounts: c.accounts || [] }))
+    setChannelAlerts(channels.value)
   } catch (error) {
     toast(errorMessage(error), 'destructive')
   } finally {

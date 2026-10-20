@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   accountReason,
+  countAccountAlerts,
   accountStatus,
   displayName,
   errorMessage,
@@ -51,5 +52,15 @@ describe('channel accounts helpers', () => {
     expect(accountStatus({ state: 'running' }).variant).toBe('success')
     expect(accountReason(lost)).toBe('Lỗi kết nối: x')
     expect(accountReason({ state: 'running', error: lost.error })).toBe('')
+  })
+
+  it('counts accounts that need an admin', () => {
+    const channels = [
+      { accounts: [{ state: 'running' }, { state: 'retrying', error: { kind: 'session_expired' } }] },
+      { accounts: [{ state: 'dropped', error: { kind: 'connection' } }, { state: 'retrying', error: { kind: 'connection' } }] },
+      {}
+    ]
+    expect(countAccountAlerts(channels)).toBe(2)
+    expect(countAccountAlerts(null)).toBe(0)
   })
 })
