@@ -25,9 +25,10 @@ export function senderAvatarURL(conversationUUID, name) {
   return `/gw/avatar?conv=${encodeURIComponent(conversationUUID)}&name=${encodeURIComponent(name)}`
 }
 
-// isOmnichannelInbox: inboxes the gateway creates are named "Zalo - acc" / "Facebook - acc".
+// isOmnichannelInbox: inboxes the gateway creates are named "Zalo - acc" /
+// "Facebook - acc" / "Fanpage - page".
 export function isOmnichannelInbox(conversation) {
-  return /^(Zalo|Facebook) - /.test(conversation?.inbox_name || '')
+  return /^(Zalo|Facebook|Fanpage) - /.test(conversation?.inbox_name || '')
 }
 
 // Quote replies: the agent picks a customer message, the reply box sends it as a
@@ -79,4 +80,9 @@ const bareEmoji = (e) => String(e || '').replace(/\uFE0F/g, '')
 export function nextReaction(choice, reactions) {
   const mine = (reactions || []).some((r) => r.mine && bareEmoji(r.emoji) === bareEmoji(choice))
   return mine ? '' : choice
+}
+
+// canRecallInbox: Messenger does not let a Page recall or edit what it sent.
+export function canRecallInbox(conversation) {
+  return isOmnichannelInbox(conversation) && !/^Fanpage - /.test(conversation?.inbox_name || '')
 }

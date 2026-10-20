@@ -69,7 +69,7 @@
                         {{ t('admin.channelAccounts.reconnect') }}
                       </Button>
                       <Button
-                        v-if="account.state === 'running'"
+                        v-if="account.state === 'running' && !channel.token_login"
                         size="sm"
                         variant="outline"
                         @click="openCompose(channel, account)"
@@ -113,7 +113,15 @@
                 <span v-if="login?.locked">- {{ login?.name }}</span>
               </DialogTitle>
               <DialogDescription>
-                {{ t(login?.channel.qr_login ? 'admin.channelAccounts.scanQr' : 'admin.channelAccounts.facebookHint') }}
+                {{
+                  t(
+                    login?.channel.qr_login
+                      ? 'admin.channelAccounts.scanQr'
+                      : login?.channel.token_login
+                        ? 'admin.channelAccounts.fanpageHint'
+                        : 'admin.channelAccounts.facebookHint'
+                  )
+                }}
               </DialogDescription>
             </DialogHeader>
 
@@ -137,6 +145,25 @@
                 />
                 <Spinner v-else-if="!finished" />
                 <p class="text-sm text-center">{{ login.status?.message || t('admin.channelAccounts.scanQr') }}</p>
+              </div>
+
+              <!-- Fanpage: page access token (Messenger Platform) -->
+              <div v-else-if="login.channel.token_login" class="space-y-2">
+                <Textarea
+                  id="fanpage-token"
+                  v-model="login.token"
+                  rows="4"
+                  class="font-mono text-xs"
+                  :placeholder="t('admin.channelAccounts.pageToken')"
+                />
+                <p v-if="login.status?.message" class="text-sm" :class="{ 'text-destructive': login.status.status === 'error' }">
+                  {{ login.status.message }}
+                </p>
+                <div class="flex justify-end">
+                  <Button :disabled="login.started || !(login.token || '').trim()" @click="connectToken">
+                    {{ t('admin.channelAccounts.connectPage') }}
+                  </Button>
+                </div>
               </div>
 
               <!-- Facebook: embedded browser (noVNC) -->
@@ -301,10 +328,12 @@ function openLogin (channel, name) {
     name: name || '',
     locked: !!name,
     started: false,
-    status: null
+    status: null,
+    token: ''
   }
   // Biết tên tài khoản là bắt đầu luôn: Zalo tạo QR, Facebook mở trình duyệt.
-  if (name) startLogin()
+  // Fanpage cần dán token trước.
+  if (name && !channel.token_login) startLogin()
 }
 
 function lockName () {
@@ -313,7 +342,26 @@ function lockName () {
     return
   }
   login.value.locked = true
-  startLogin()
+  if (!login.value.channel.token_login) startLogin()
+}
+
+// Fanpage: the bot checks the token with Meta, subscribes the webhook and
+// stores it encrypted.
+async function connectToken () {
+  const current = login.value
+  current.started = true
+  current.status = { status: 'running', message: t('admin.channelAccounts.checkingToken') }
+  try {
+    await api.connectChannelToken(current.channel.channel, current.name, current.token.trim())
+    current.token = ''
+    current.status = { status: 'success', message: t('admin.channelAccounts.loginDone') }
+    toast(t('admin.channelAccounts.loginDone'))
+    loadAccounts()
+    setTimeout(() => login.value === current && closeLogin(), CLOSE_AFTER_SUCCESS_MS)
+  } catch (error) {
+    current.started = false
+    current.status = { status: 'error', message: errorMessage(error) }
+  }
 }
 
 async function startLogin () {

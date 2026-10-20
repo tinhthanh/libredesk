@@ -414,6 +414,7 @@ import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { errorMessage } from '@main/features/admin/channel-accounts/channelAccounts.js'
 import { containsQuoteMarkers } from '@shared-ui/utils/quotedContent.js'
 import {
+  canRecallInbox,
   groupSender,
   isOmnichannelInbox,
   nextReaction,
@@ -590,7 +591,7 @@ const canRecall = computed(
     !recalled.value &&
     props.message.status === 'sent' &&
     ['agent', 'ai_assistant'].includes(props.message.sender_type) &&
-    isOmnichannelInbox(convStore.current)
+    canRecallInbox(convStore.current)
 )
 // omnichannel: Facebook lets the sender edit a sent message (Zalo does not).
 const editOpen = ref(false)

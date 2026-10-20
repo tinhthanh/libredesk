@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   groupSender,
+  canRecallInbox,
   isOmnichannelInbox,
   nextReaction,
   REACTION_CHOICES,
@@ -59,5 +60,12 @@ describe('omnichannel quote replies', () => {
     expect(nextReaction('❤️', reactions)).toBe('')
     expect(nextReaction('😆', reactions)).toBe('😆')
     expect(nextReaction('👍', undefined)).toBe('👍')
+  })
+
+  it('treats Fanpage inboxes as omnichannel without recall', () => {
+    expect(isOmnichannelInbox({ inbox_name: 'Fanpage - tuankhai' })).toBe(true)
+    expect(canRecallInbox({ inbox_name: 'Fanpage - tuankhai' })).toBe(false)
+    expect(canRecallInbox({ inbox_name: 'Zalo - shop1' })).toBe(true)
+    expect(canRecallInbox({ inbox_name: 'Email' })).toBe(false)
   })
 })
