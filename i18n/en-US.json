@@ -737,6 +737,7 @@
   "conversation.searchContact": "Search contact by email or type new email",
   "conversation.sentViaEmail": "Sent via email",
   "conversation.showQuotedText": "Show quoted text",
+  "conversation.react": "React",
   "conversation.quoteReply": "Reply with quote",
   "conversation.replyingTo": "Replying to {name}",
   "conversation.removeQuote": "Remove quote",

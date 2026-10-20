@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   groupSender,
   isOmnichannelInbox,
+  nextReaction,
+  REACTION_CHOICES,
   quoteHTML,
   quoteTarget,
   quoteText,
@@ -46,5 +48,16 @@ describe('omnichannel quote replies', () => {
       '<blockquote data-reply-uuid="m&quot;1"><p>A&lt;b&gt;: x &amp; y</p></blockquote>'
     )
     expect(quoteHTML(null)).toBe('')
+  })
+
+  it('toggles the agent reaction', () => {
+    expect(REACTION_CHOICES).toHaveLength(6)
+    const reactions = [
+      { emoji: '❤', count: 2, names: ['Lan', 'Chủ tài khoản'], mine: true },
+      { emoji: '😆', count: 1, names: ['Lan'] }
+    ]
+    expect(nextReaction('❤️', reactions)).toBe('')
+    expect(nextReaction('😆', reactions)).toBe('😆')
+    expect(nextReaction('👍', undefined)).toBe('👍')
   })
 })

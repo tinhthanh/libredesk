@@ -297,6 +297,8 @@ const getChannelPresence = (uuid) => http.get(`/gw/conversations/${encodeURIComp
 const editChannelMessage = (uuid, text) =>
   http.post(`/gw/messages/${encodeURIComponent(uuid)}/edit`, { text }, { timeout: 70000 })
 const recallChannelMessage = (uuid) => http.post(`/gw/messages/${encodeURIComponent(uuid)}/recall`, {}, { timeout: 70000 })
+const reactChannelMessage = (uuid, conversationUUID, emoji) =>
+  http.post(`/gw/messages/${encodeURIComponent(uuid)}/react`, { conversation_uuid: conversationUUID, emoji }, { timeout: 70000 })
 const getTags = () => http.get('/api/v1/tags')
 const importTags = (data) =>
   http.post('/api/v1/tags/import', data, {
@@ -638,6 +640,7 @@ export default {
   restartChannelAccount,
   removeChannelAccount,
   recallChannelMessage,
+  reactChannelMessage,
   editChannelMessage,
   getChannelPresence,
   resolveChannelRecipient,

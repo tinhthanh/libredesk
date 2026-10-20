@@ -242,6 +242,32 @@
             </TooltipTrigger>
             <TooltipContent>{{ t('conversation.quoteReply') }}</TooltipContent>
           </Tooltip>
+          <!-- omnichannel: react to the customer message on Zalo/Facebook -->
+          <Popover v-model:open="reactOpen">
+            <PopoverTrigger as-child>
+              <Button
+                variant="ghost"
+                class="w-8 h-8 p-0 text-muted-foreground"
+                :aria-label="t('conversation.react')"
+                :title="t('conversation.react')"
+              >
+                <SmilePlus class="w-4 h-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent class="w-auto p-1 flex gap-0.5" side="top">
+              <button
+                v-for="choice in REACTION_CHOICES"
+                :key="choice"
+                type="button"
+                class="rounded-md px-1.5 py-1 text-lg hover:bg-accent disabled:opacity-50"
+                :class="{ 'bg-accent': nextReaction(choice, reactions) === '' }"
+                :disabled="reacting"
+                @click="react(choice)"
+              >
+                {{ choice }}
+              </button>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
@@ -344,7 +370,8 @@ import { computed, ref, onMounted, nextTick } from 'vue'
 import { useConversationStore } from '@main/stores/conversation'
 import { useUserStore } from '@main/stores/user'
 import { useI18n } from 'vue-i18n'
-import { Lock, Mail, RotateCcw, Check, Maximize2, Trash2, MoreHorizontal, Reply, Undo2, Pencil } from 'lucide-vue-next'
+import { Lock, Mail, RotateCcw, Check, Maximize2, Trash2, MoreHorizontal, Reply, Undo2, Pencil, SmilePlus } from 'lucide-vue-next'
+import { Popover, PopoverContent, PopoverTrigger } from '@shared-ui/components/ui/popover'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -389,7 +416,9 @@ import { containsQuoteMarkers } from '@shared-ui/utils/quotedContent.js'
 import {
   groupSender,
   isOmnichannelInbox,
+  nextReaction,
   quoteTarget,
+  REACTION_CHOICES,
   replyTarget,
   stripGroupSender,
   senderAvatarURL
@@ -487,6 +516,23 @@ const canQuote = computed(
 )
 const quoteMessage = () => {
   replyTarget.value = quoteTarget(convStore.current?.uuid, props.message)
+}
+
+// omnichannel: the bot reacts on Zalo/Facebook; the badge follows on the next
+// presence poll (asked for right away below).
+const reactOpen = ref(false)
+const reacting = ref(false)
+const react = async (choice) => {
+  reacting.value = true
+  try {
+    await api.reactChannelMessage(props.message.uuid, convStore.current?.uuid, nextReaction(choice, props.reactions))
+    reactOpen.value = false
+    emitter.emit('omnichannel:reactions-changed')
+  } catch (error) {
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: errorMessage(error) })
+  } finally {
+    reacting.value = false
+  }
 }
 
 const getFullName = computed(() => {

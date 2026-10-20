@@ -68,3 +68,15 @@ export function quoteHTML(target) {
   if (!target?.uuid) return ''
   return `<blockquote data-reply-uuid="${escapeHTML(target.uuid)}"><p>${escapeHTML(target.author)}: ${escapeHTML(target.text)}</p></blockquote>`
 }
+
+// Reactions an agent can send: the set both Zalo and Messenger understand.
+export const REACTION_CHOICES = ['❤️', '👍', '😆', '😮', '😢', '😡']
+
+const bareEmoji = (e) => String(e || '').replace(/\uFE0F/g, '')
+
+// nextReaction is what to send when the agent picks `choice`: picking the
+// emoji the account already reacted with removes it ("").
+export function nextReaction(choice, reactions) {
+  const mine = (reactions || []).some((r) => r.mine && bareEmoji(r.emoji) === bareEmoji(choice))
+  return mine ? '' : choice
+}

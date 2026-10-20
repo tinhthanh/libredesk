@@ -186,6 +186,7 @@ const newMessageHandler = (data) => {
 
 onMounted(() => {
   emitter.on(EMITTER_EVENTS.NEW_MESSAGE, newMessageHandler)
+  emitter.on('omnichannel:reactions-changed', pollPresence)
 })
 
 // omnichannel: customer "seen" and "typing" from the gateway, polled while a
@@ -242,6 +243,7 @@ const lastSeenUUID = computed(() => {
 onUnmounted(() => {
   clearInterval(presenceTimer)
   emitter.off(EMITTER_EVENTS.NEW_MESSAGE, newMessageHandler)
+  emitter.off('omnichannel:reactions-changed', pollPresence)
 })
 
 watch(
