@@ -68,6 +68,14 @@
                       >
                         {{ t('admin.channelAccounts.reconnect') }}
                       </Button>
+                      <Button
+                        v-if="account.state === 'running'"
+                        size="sm"
+                        variant="outline"
+                        @click="openCompose(channel, account)"
+                      >
+                        {{ t('admin.channelAccounts.newMessage') }}
+                      </Button>
                       <Button size="sm" variant="ghost" class="text-destructive" @click="askRemove(channel, account.name)">
                         {{ t('admin.channelAccounts.remove') }}
                       </Button>
@@ -138,6 +146,34 @@
           </DialogContent>
         </Dialog>
 
+        <Dialog :open="!!compose" @update:open="(open) => !open && (compose = null)">
+          <DialogContent class="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>
+                {{ t('admin.channelAccounts.newMessage') }} - {{ compose?.channel.label }} {{ compose?.account }}
+              </DialogTitle>
+              <DialogDescription>{{ t('admin.channelAccounts.newMessageHint') }}</DialogDescription>
+            </DialogHeader>
+            <template v-if="compose">
+              <Input
+                v-model="compose.to"
+                :placeholder="
+                  compose.channel.channel === 'zalo'
+                    ? t('admin.channelAccounts.recipientZalo')
+                    : t('admin.channelAccounts.recipientFacebook')
+                "
+              />
+              <Textarea v-model="compose.text" rows="4" :placeholder="t('admin.channelAccounts.firstMessage')" />
+              <p v-if="compose.error" class="text-sm text-destructive">{{ compose.error }}</p>
+              <div class="flex justify-end">
+                <Button :disabled="compose.sending || !compose.to.trim() || !compose.text.trim()" @click="sendFirstMessage">
+                  {{ t('admin.channelAccounts.sendFirst') }}
+                </Button>
+              </div>
+            </template>
+          </DialogContent>
+        </Dialog>
+
         <AlertDialog :open="!!removing" @update:open="(open) => !open && (removing = null)">
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -163,12 +199,14 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AdminSplitLayout from '@/layouts/admin/AdminSplitLayout.vue'
 import LoadingOverlay from '@main/components/layout/LoadingOverlay.vue'
 import { Button } from '@shared-ui/components/ui/button/index.js'
 import { Badge } from '@shared-ui/components/ui/badge/index.js'
 import { Input } from '@shared-ui/components/ui/input/index.js'
+import { Textarea } from '@shared-ui/components/ui/textarea/index.js'
 import { Spinner } from '@shared-ui/components/ui/spinner/index.js'
 import { Avatar, AvatarFallback, AvatarImage } from '@shared-ui/components/ui/avatar/index.js'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@shared-ui/components/ui/card/index.js'
@@ -208,6 +246,7 @@ const LOGIN_POLL_MS = 2000
 const CLOSE_AFTER_SUCCESS_MS = 1500
 
 const { t } = useI18n()
+const router = useRouter()
 const emitter = useEmitter()
 const isLoading = ref(false)
 const channels = ref([])
@@ -313,6 +352,51 @@ function closeLogin () {
   // Đóng hộp thoại khi trình duyệt Facebook còn mở: dừng phiên để giải phóng RAM.
   if (current?.started && current.channel.browser_login && !isLoginFinished(current.status?.status)) {
     api.cancelChannelLogin(current.channel.channel, current.name).catch(() => {})
+  }
+}
+
+// Message a customer first: the gateway finds the recipient and returns the
+// contact identity it uses; the conversation is created as the current agent.
+const compose = ref(null) // { channel, account, to, text, sending, error }
+
+function openCompose (channel, account) {
+  compose.value = { channel, account: account.name, to: '', text: '', sending: false, error: '' }
+}
+
+function escapeHTML (s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+}
+
+async function sendFirstMessage () {
+  const c = compose.value
+  c.sending = true
+  c.error = ''
+  try {
+    const { data: who } = await api.resolveChannelRecipient(c.channel.channel, c.account, c.to.trim())
+    const html = c.text.trim().split('\n').map((line) => `<p>${escapeHTML(line)}</p>`).join('')
+    let uuid = who.conversation_uuid
+    if (uuid) {
+      await api.sendMessage(uuid, { message: html, private: false, sender_type: 'agent', attachments: [], mentions: [] })
+    } else {
+      const resp = await api.createConversation({
+        inbox_id: who.inbox_id,
+        contact_email: who.contact_email,
+        first_name: who.first_name,
+        last_name: who.last_name,
+        external_user_id: who.external_user_id,
+        reuse_contact: true,
+        initiator: 'agent',
+        subject: who.first_name,
+        content: html
+      })
+      uuid = resp.data.data.uuid
+    }
+    compose.value = null
+    router.push({ name: 'inbox-conversation', params: { type: 'all', uuid } })
+  } catch (error) {
+    if (compose.value) compose.value.error = errorMessage(error)
+  } finally {
+    if (compose.value) compose.value.sending = false
   }
 }
 

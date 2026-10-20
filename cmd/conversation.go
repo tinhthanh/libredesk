@@ -926,7 +926,9 @@ func validateCreateConversationRequest(req createConversationRequest, app *App) 
 	if !inbox.Enabled {
 		return envelope.NewError(envelope.InputError, app.i18n.T("globals.messages.disabled"), nil)
 	}
-	if inbox.Channel != "email" {
+	// omnichannel: live chat inboxes too, so agents can message a Zalo/Facebook
+	// customer first (the gateway delivers the reply; see its external user id).
+	if inbox.Channel != "email" && inbox.Channel != "livechat" {
 		return envelope.NewError(envelope.InputError, app.i18n.T("globals.messages.somethingWentWrong"), nil)
 	}
 

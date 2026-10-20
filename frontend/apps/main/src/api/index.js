@@ -288,6 +288,9 @@ const cancelChannelLogin = (channel, name) => http.delete(`${channelAccountPath(
 const restartChannelAccount = (channel, name) => http.post(`${channelAccountPath(channel, name)}/restart`)
 const removeChannelAccount = (channel, name) => http.delete(channelAccountPath(channel, name))
 // Recall an agent reply on Zalo/Facebook (the gateway adds a private note).
+// Find a customer to message first (phone for Zalo, id/link for Facebook).
+const resolveChannelRecipient = (channel, name, to) =>
+  http.post(`${channelAccountPath(channel, name)}/resolve`, { to }, { timeout: 40000 })
 // Customer typing / seen state kept by the gateway.
 const getChannelPresence = (uuid) => http.get(`/gw/conversations/${encodeURIComponent(uuid)}/presence`)
 // Edit an agent reply on Facebook (the gateway adds a private note).
@@ -637,6 +640,7 @@ export default {
   recallChannelMessage,
   editChannelMessage,
   getChannelPresence,
+  resolveChannelRecipient,
   login,
   deleteUser,
   importAgents,
