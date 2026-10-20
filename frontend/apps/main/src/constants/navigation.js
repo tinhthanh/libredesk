@@ -96,6 +96,12 @@ export const adminNavItems = [
         permission: 'inboxes:manage',
         isTitleKeyPlural: true,
         icon: 'Inbox'
+      },
+      {
+        titleKey: 'admin.channelAccounts.title',
+        href: '/admin/channel-accounts',
+        permission: 'inboxes:manage',
+        icon: 'Link'
       }
     ]
   },

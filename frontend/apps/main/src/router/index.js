@@ -358,6 +358,12 @@ const routes = [
             ]
           },
           {
+            path: 'channel-accounts',
+            name: 'channel-accounts',
+            component: () => import('@main/views/admin/channel-accounts/ChannelAccounts.vue'),
+            meta: { titleKey: 'admin.channelAccounts.title' }
+          },
+          {
             path: 'notification',
             component: () => import('@main/features/admin/notification/NotificationSetting.vue'),
             meta: { titleKey: 'globals.terms.notification', titleCount: 2 }
