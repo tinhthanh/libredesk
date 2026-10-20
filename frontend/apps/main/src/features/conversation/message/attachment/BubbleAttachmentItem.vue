@@ -1,5 +1,24 @@
 <template>
-  <div class="flex items-center group text-left">
+  <!-- omnichannel: play videos inline instead of showing a file card. -->
+  <div v-if="isVideo" class="group relative w-72 max-w-full rounded-md border overflow-hidden bg-black">
+    <video
+      :src="attachment.url"
+      controls
+      preload="metadata"
+      playsinline
+      class="w-full max-h-80 bg-black"
+    />
+    <div class="flex items-center justify-between gap-2 px-2 py-1 bg-muted/60 text-left">
+      <div class="min-w-0">
+        <p class="text-xs font-medium truncate" :title="attachment.name">
+          {{ shortName(attachment.name) }}
+        </p>
+        <p class="text-[10px] text-muted-foreground">{{ formatBytes(attachment.size) }}</p>
+      </div>
+      <DownloadLink :url="attachment.url" class="shrink-0" />
+    </div>
+  </div>
+  <div v-else class="flex items-center group text-left">
     <Popover :open="showAudio" @update:open="showAudio = $event">
       <PopoverTrigger as-child>
         <div
@@ -94,6 +113,8 @@ const fallbackToOriginal = (event, originalUrl) => {
 const isImage = computed(() => (props.attachment.content_type || '').startsWith('image/'))
 
 const isAudio = computed(() => (props.attachment.content_type || '').startsWith('audio/'))
+
+const isVideo = computed(() => (props.attachment.content_type || '').startsWith('video/'))
 
 const ext = computed(() => {
   const parts = (props.attachment.name || '').split('.')
