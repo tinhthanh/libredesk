@@ -54,7 +54,7 @@
                       class="text-sm truncate min-w-0 text-foreground"
                       :class="isUnread ? 'font-semibold' : 'font-medium'"
                     >
-                      {{ contactFullName }}
+                      {{ displayName }}
                     </h3>
                   </TooltipTrigger>
                   <TooltipContent>{{ contactFullName }}</TooltipContent>
@@ -79,6 +79,15 @@
                   </span>
                 </div>
               </div>
+
+              <!-- omnichannel: channel and account as a coloured chip -->
+              <span
+                v-if="omniChannel"
+                class="inline-flex items-center rounded px-1.5 py-px text-[10px] font-medium leading-4"
+                :class="omniChannel.classes"
+              >
+                {{ conversation.inbox_name }}
+              </span>
 
               <!-- Subject -->
               <p
@@ -264,6 +273,20 @@ const draftPreview = computed(() => {
   if (/<img\b/i.test(draft.content || '')) return t('globals.terms.image', 1)
   return ''
 })
+
+// omnichannel: inboxes created by the gateway are named "Zalo - acc" / "Facebook - acc".
+const OMNI_CHANNELS = {
+  Zalo: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
+  Facebook: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+}
+const omniChannel = computed(() => {
+  const label = (props.conversation.inbox_name || '').split(' - ')[0]
+  return OMNI_CHANNELS[label] ? { label, classes: OMNI_CHANNELS[label] } : null
+})
+// The chip already names the channel, so drop the "· Zalo acc" suffix here.
+const displayName = computed(() =>
+  omniChannel.value ? props.conversation.contact?.first_name || props.contactFullName : props.contactFullName
+)
 
 const showSubject = computed(
   () => appSettingsStore.settings['app.show_conversation_subject'] !== false
