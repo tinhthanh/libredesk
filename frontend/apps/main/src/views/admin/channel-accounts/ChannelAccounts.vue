@@ -74,7 +74,9 @@
                 {{ login?.channel.label }}
                 <span v-if="login?.locked">- {{ login?.name }}</span>
               </DialogTitle>
-              <DialogDescription>{{ t('admin.channelAccounts.help') }}</DialogDescription>
+              <DialogDescription>
+                {{ t(login?.channel.qr_login ? 'admin.channelAccounts.scanQr' : 'admin.channelAccounts.facebookHint') }}
+              </DialogDescription>
             </DialogHeader>
 
             <div v-if="login && !login.locked" class="space-y-2">

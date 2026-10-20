@@ -549,6 +549,7 @@
   "admin.channelAccounts.removeConfirm": "Remove account {name}? The bot stops and its sign-in data is deleted. Existing conversations stay in the inbox.",
   "admin.channelAccounts.saveCookie": "Check and save",
   "admin.channelAccounts.scanQr": "Scan this QR code with the Zalo app.",
+  "admin.channelAccounts.facebookHint": "Sign in to Facebook in the browser below, or paste the cookie of a browser that is already signed in.",
   "admin.channelAccounts.start": "Start",
   "admin.channelAccounts.state.dropped": "Signed out",
   "admin.channelAccounts.state.retrying": "Retrying",
