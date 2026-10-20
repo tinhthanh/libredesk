@@ -83,6 +83,7 @@
 </template>
 
 <script setup>
+import { groupSender } from '@main/utils/omnichannel.js'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import MessageBubble from './MessageBubble.vue'
@@ -236,6 +237,9 @@ const canGroup = (a, b) => {
   const aSenderId = a.author?.id ?? a.sender_id
   const bSenderId = b.author?.id ?? b.sender_id
   if (!aSenderId || aSenderId !== bSenderId) return false
+  // omnichannel: in a group contact, a new "[Sender]: " starts a new group.
+  const bMember = groupSender(b)
+  if (bMember && bMember !== groupSender(a)) return false
 
   const aBucket = Math.floor(new Date(a.created_at).getTime() / GROUP_WINDOW_MS)
   const bBucket = Math.floor(new Date(b.created_at).getTime() / GROUP_WINDOW_MS)

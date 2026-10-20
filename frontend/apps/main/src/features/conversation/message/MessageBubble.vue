@@ -286,6 +286,7 @@ import MessageEnvelope from './MessageEnvelope.vue'
 import CSATResponseDisplay from './CSATResponseDisplay.vue'
 import api from '@main/api'
 import { containsQuoteMarkers } from '@shared-ui/utils/quotedContent.js'
+import { groupSender, stripGroupSender, senderAvatarURL } from '@main/utils/omnichannel.js'
 
 const extendedCssProperties = [...allowedCssProperties, 'transform', 'transform-origin']
 
@@ -354,7 +355,11 @@ const aiAssistantRoute = computed(() => {
 
 const isOutgoing = computed(() => props.direction === 'outgoing')
 
+// omnichannel: member of a Zalo/Facebook group, shown instead of the group contact.
+const member = computed(() => groupSender(props.message))
+
 const getFullName = computed(() => {
+  if (member.value) return member.value
   const author = props.message.author ?? {}
   const firstName = author.first_name ?? 'User'
   const lastName = author.last_name ?? ''
@@ -362,10 +367,14 @@ const getFullName = computed(() => {
 })
 
 const getAvatar = computed(() => {
+  if (member.value) {
+    return senderAvatarURL(convStore.current?.uuid, member.value)
+  }
   return props.message.author?.avatar_url || ''
 })
 
 const avatarFallback = computed(() => {
+  if (member.value) return member.value.toUpperCase().substring(0, 2)
   const firstName = props.message.author?.first_name ?? (isOutgoing.value ? 'A' : 'U')
   return firstName.toUpperCase().substring(0, 2)
 })
@@ -374,6 +383,7 @@ const sanitizedContent = computed(() => {
   if (props.message.meta?.is_csat) {
     return t('globals.messages.pleaseRateConversation')
   }
+  if (member.value) return stripGroupSender(props.message.content)
   return props.message.content || ''
 })
 
