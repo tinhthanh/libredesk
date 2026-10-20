@@ -53,6 +53,7 @@
                 direction="outgoing"
                 :group-with-prev="row.groupWithPrev"
                 :group-with-next="row.groupWithNext"
+                :reactions="reactionsFor(row.message.uuid)"
               />
             </div>
             <div v-else-if="row.message.type === 'activity'">
