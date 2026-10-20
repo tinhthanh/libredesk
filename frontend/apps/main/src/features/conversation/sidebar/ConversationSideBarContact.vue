@@ -40,7 +40,8 @@
         {{ conversation?.contact?.first_name + ' ' + conversation?.contact?.last_name }}
       </span>
     </div>
-    <div class="flex gap-2 items-center">
+    <!-- omnichannel: the gateway's synthetic e-mail (….invalid) means nothing to agents. -->
+    <div v-if="!isOmni" class="flex gap-2 items-center">
       <Mail size="16" class="text-muted-foreground flex-shrink-0" />
       <Tooltip v-if="isLivechat">
         <TooltipTrigger as-child>
@@ -58,7 +59,7 @@
         {{ t('conversation.sidebar.notAvailable') }}
       </span>
     </div>
-    <div class="flex gap-2 items-center">
+    <div v-if="!isOmni || conversation?.contact?.phone_number" class="flex gap-2 items-center">
       <Phone size="16" class="text-muted-foreground flex-shrink-0" />
       <span class="sidebar-value">
         {{ phoneNumber }}
@@ -77,7 +78,7 @@
         <Globe size="16" class="text-muted-foreground flex-shrink-0" />
         <span class="sidebar-value">{{ countryName }}</span>
       </div>
-      <div v-if="conversation?.meta?.ip" class="flex gap-2 items-center">
+      <div v-if="conversation?.meta?.ip && !isOmni" class="flex gap-2 items-center">
         <Monitor size="16" class="text-muted-foreground flex-shrink-0" />
         <span class="sidebar-value break-all">{{ conversation.meta.ip }}</span>
       </div>
@@ -108,6 +109,7 @@
 </template>
 
 <script setup>
+import { isOmnichannelInbox } from '@main/utils/omnichannel.js'
 import { computed, ref, onMounted } from 'vue'
 import { ViewVerticalIcon } from '@radix-icons/vue'
 import { Button } from '@shared-ui/components/ui/button'
@@ -157,6 +159,8 @@ const countryName = computed(() => {
 })
 
 const isLivechat = computed(() => conversation.value?.inbox_channel === 'livechat')
+// omnichannel: the gateway's IP is meaningless; its user agent reads "Zalo · acc · Nhóm".
+const isOmni = computed(() => isOmnichannelInbox(conversation.value))
 const contactStatus = computed(() => conversation.value?.contact?.availability_status)
 const isVerified = computed(
   () => isLivechat.value && conversation.value?.contact?.type !== 'visitor'
@@ -165,6 +169,7 @@ const isVerified = computed(
 const parsedUA = computed(() => {
   const ua = conversation.value?.meta?.user_agent
   if (!ua) return ''
+  if (isOmni.value) return ua
   const browser = ua.match(/(Chrome|Firefox|Safari|Edge|Opera|MSIE|Trident)[/\s](\d+)/i)
   const os = ua.match(/(Windows|Mac OS X|Linux|Android|iOS|iPhone|iPad)[\s/]?([0-9._]*)/i)
   const parts = []

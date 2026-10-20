@@ -113,7 +113,10 @@
         <AccordionItem
           value="page_visits"
           class="accordion-item"
-          v-if="conversationStore.current?.inbox_channel === 'livechat'"
+          v-if="
+            conversationStore.current?.inbox_channel === 'livechat' &&
+            !isOmnichannelInbox(conversationStore.current)
+          "
         >
           <AccordionTrigger class="accordion-trigger">
             {{ $t('conversation.sidebar.lastVisitedPages') }}
@@ -156,6 +159,7 @@
 </template>
 
 <script setup>
+import { isOmnichannelInbox } from '@main/utils/omnichannel.js'
 import { ref, onMounted, computed, watch } from 'vue'
 import { Sparkles, Loader2, Plus } from 'lucide-vue-next'
 import { Button } from '@shared-ui/components/ui/button'
