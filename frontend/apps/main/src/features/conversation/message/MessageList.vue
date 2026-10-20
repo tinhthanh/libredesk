@@ -44,6 +44,7 @@
                 :group-with-prev="row.groupWithPrev"
                 :group-with-next="row.groupWithNext"
                 :seen="row.message.uuid === lastSeenUUID"
+                :reactions="reactionsFor(row.message.uuid)"
               />
             </div>
             <div v-else-if="row.message.type === 'outgoing' && row.message.private">
@@ -189,7 +190,7 @@ onMounted(() => {
 // omnichannel: customer "seen" and "typing" from the gateway, polled while a
 // Zalo/Facebook conversation is open (Libredesk's own typing indicator is reused).
 const PRESENCE_POLL_MS = 4000
-const presence = ref({ conversationUUID: '', readAt: '', readUUID: '' })
+const presence = ref({ conversationUUID: '', readAt: '', readUUID: '', reactions: {} })
 let presenceTimer = null
 const pollPresence = async () => {
   const conv = conversationStore.current
@@ -197,7 +198,12 @@ const pollPresence = async () => {
   try {
     const { data } = await api.getChannelPresence(conv.uuid)
     if (conversationStore.current?.uuid !== conv.uuid) return
-    presence.value = { conversationUUID: conv.uuid, readAt: data.read_at || '', readUUID: data.read_uuid || '' }
+    presence.value = {
+      conversationUUID: conv.uuid,
+      readAt: data.read_at || '',
+      readUUID: data.read_uuid || '',
+      reactions: data.reactions || {}
+    }
     if (conversationStore.conversation.isTyping !== !!data.typing) conversationStore.conversation.isTyping = !!data.typing
   } catch {
     // Gateway chưa hỗ trợ / lỗi mạng: bỏ qua, lần sau hỏi lại.
@@ -207,7 +213,7 @@ watch(
   () => conversationStore.current?.uuid,
   () => {
     clearInterval(presenceTimer)
-    presence.value = { conversationUUID: '', readAt: '', readUUID: '' }
+    presence.value = { conversationUUID: '', readAt: '', readUUID: '', reactions: {} }
     if (isOmnichannelInbox(conversationStore.current)) {
       pollPresence()
       presenceTimer = setInterval(pollPresence, PRESENCE_POLL_MS)
@@ -215,6 +221,8 @@ watch(
   },
   { immediate: true }
 )
+const NO_REACTIONS = []
+const reactionsFor = (uuid) => presence.value.reactions[uuid] || NO_REACTIONS
 // The latest agent reply the customer has seen: the exact message when the
 // platform reports ids, otherwise the last one sent before the read time.
 const lastSeenUUID = computed(() => {

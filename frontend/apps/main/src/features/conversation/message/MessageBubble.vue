@@ -92,121 +92,136 @@
           </DropdownMenu>
         </div>
 
+        <!-- omnichannel: wrapper so the reaction pill can sit on the bubble's edge -->
         <div
-          class="flex flex-col justify-end message-bubble"
-          :class="bubbleClasses"
+          class="relative flex flex-col max-w-full md:min-w-[30%]"
+          :class="{ 'mb-3': reactions.length }"
         >
-          <div v-if="isDeleted" class="text-sm italic text-muted-foreground">
-            {{ message.content }}
-          </div>
-          <template v-else>
-            <!-- Message Envelope -->
-            <MessageEnvelope :message="message" v-if="showEnvelope" />
+          <div
+            class="flex flex-col justify-end message-bubble !w-full"
+            :class="bubbleClasses"
+          >
+            <div v-if="isDeleted" class="text-sm italic text-muted-foreground">
+              {{ message.content }}
+            </div>
+            <template v-else>
+              <!-- Message Envelope -->
+              <MessageEnvelope :message="message" v-if="showEnvelope" />
 
-            <hr class="mb-2 border-muted-foreground/20" v-if="showEnvelope" />
+              <hr class="mb-2 border-muted-foreground/20" v-if="showEnvelope" />
 
-            <!-- Message Content -->
-            <div
-              ref="contentWrapperEl"
-              class="relative"
-              :class="{ 'max-h-[400px] overflow-hidden': isExpandable && !isExpanded }"
-            >
+              <!-- Message Content -->
               <div
-                v-if="message.content_type === 'text'"
-                class="mb-1 native-html whitespace-pre-wrap"
-                :class="{ 'mb-3': message.attachments.length > 0 }"
+                ref="contentWrapperEl"
+                class="relative"
+                :class="{ 'max-h-[400px] overflow-hidden': isExpandable && !isExpanded }"
               >
-                {{ sanitizedContent }}
-              </div>
-              <div v-else ref="messageContentEl" @click="onMessageContentClick">
-                <Letter
-                  :html="sanitizedContent"
-                  :allowedSchemas="['cid', 'https', 'http', 'mailto']"
-                  :allowed-css-properties="extendedCssProperties"
-                  class="mb-1 native-html break-words"
+                <div
+                  v-if="message.content_type === 'text'"
+                  class="mb-1 native-html whitespace-pre-wrap"
                   :class="{ 'mb-3': message.attachments.length > 0 }"
+                >
+                  {{ sanitizedContent }}
+                </div>
+                <div v-else ref="messageContentEl" @click="onMessageContentClick">
+                  <Letter
+                    :html="sanitizedContent"
+                    :allowedSchemas="['cid', 'https', 'http', 'mailto']"
+                    :allowed-css-properties="extendedCssProperties"
+                    class="mb-1 native-html break-words"
+                    :class="{ 'mb-3': message.attachments.length > 0 }"
+                  />
+                </div>
+
+                <div
+                  v-if="isExpandable && !isExpanded"
+                  class="absolute left-0 right-0 bottom-0 h-24 flex items-end justify-center pointer-events-none"
+                  :class="
+                    message.private
+                      ? 'bg-gradient-to-t from-private via-private/90 to-transparent'
+                      : isOutgoing
+                        ? 'bg-gradient-to-t from-secondary via-secondary/90 to-transparent'
+                        : 'bg-gradient-to-t from-background via-background/90 to-transparent'
+                  "
+                >
+                  <button
+                    type="button"
+                    @click="isExpanded = true"
+                    class="pointer-events-auto flex items-center gap-1.5 text-xs font-medium text-foreground bg-accent hover:bg-accent/80 border border-border rounded-full px-3 py-1 mb-1 transition-colors duration-200"
+                  >
+                    <Maximize2 :size="12" />
+                    {{ t('globals.terms.expand') }}
+                  </button>
+                </div>
+              </div>
+
+              <ImageLightbox
+                v-model="inlineLightboxOpen"
+                :images="inlineImages"
+                :start-index="inlineLightboxIndex"
+              />
+
+              <!-- Quoted Text Toggle (incoming only) -->
+              <div
+                v-if="!isOutgoing && hasQuotedContent"
+                @click="toggleQuote"
+                class="text-xs cursor-pointer text-muted-foreground px-2 py-1 w-max hover:bg-muted hover:text-foreground rounded-md transition-colors duration-200"
+              >
+                {{ showQuotedText ? t('conversation.hideQuotedText') : t('conversation.showQuotedText') }}
+              </div>
+
+              <!-- Attachments -->
+              <BubbleAttachmentPreview :attachments="nonInlineAttachments" />
+
+              <!-- CSAT Response -->
+              <CSATResponseDisplay :message="message" />
+
+              <!-- omnichannel: the customer has seen up to this reply -->
+              <div v-if="seen && isOutgoing" class="text-xs text-muted-foreground self-end">
+                {{ t('conversation.seenByCustomer') }}
+              </div>
+              <!-- omnichannel: edited on Facebook in this session -->
+              <div v-if="editedText" class="text-xs italic text-muted-foreground self-end">
+                {{ t('conversation.editedTo', { text: editedText }) }}
+              </div>
+              <!-- omnichannel: recalled on Zalo/Facebook in this session -->
+              <div v-if="recalled" class="text-xs italic text-muted-foreground self-end">
+                {{ t('conversation.recalled') }}
+              </div>
+
+              <!-- Spinner for Pending Messages (outgoing only) -->
+              <Spinner v-if="isOutgoing && message.status === 'pending'" size="sm" />
+
+              <!-- Status Icons (outgoing only) -->
+              <div v-if="isOutgoing" class="flex items-center space-x-2 mt-2 self-end">
+                <Lock :size="12" v-if="isPrivateMessage" class="text-muted-foreground" />
+                <Check :size="14" v-if="showCheckCheck" class="text-success" />
+                <Tooltip v-if="message.meta?.continuity_emailed">
+                  <TooltipTrigger>
+                    <Mail :size="12" class="text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{{ t('conversation.sentViaEmail') }}</p>
+                  </TooltipContent>
+                </Tooltip>
+                <RotateCcw
+                  size="12"
+                  @click="retryMessage(message)"
+                  class="cursor-pointer text-muted-foreground hover:text-foreground transition-colors duration-200"
+                  v-if="showRetry"
                 />
               </div>
-
-              <div
-                v-if="isExpandable && !isExpanded"
-                class="absolute left-0 right-0 bottom-0 h-24 flex items-end justify-center pointer-events-none"
-                :class="
-                  message.private
-                    ? 'bg-gradient-to-t from-private via-private/90 to-transparent'
-                    : isOutgoing
-                      ? 'bg-gradient-to-t from-secondary via-secondary/90 to-transparent'
-                      : 'bg-gradient-to-t from-background via-background/90 to-transparent'
-                "
-              >
-                <button
-                  type="button"
-                  @click="isExpanded = true"
-                  class="pointer-events-auto flex items-center gap-1.5 text-xs font-medium text-foreground bg-accent hover:bg-accent/80 border border-border rounded-full px-3 py-1 mb-1 transition-colors duration-200"
-                >
-                  <Maximize2 :size="12" />
-                  {{ t('globals.terms.expand') }}
-                </button>
-              </div>
-            </div>
-
-            <ImageLightbox
-              v-model="inlineLightboxOpen"
-              :images="inlineImages"
-              :start-index="inlineLightboxIndex"
-            />
-
-            <!-- Quoted Text Toggle (incoming only) -->
-            <div
-              v-if="!isOutgoing && hasQuotedContent"
-              @click="toggleQuote"
-              class="text-xs cursor-pointer text-muted-foreground px-2 py-1 w-max hover:bg-muted hover:text-foreground rounded-md transition-colors duration-200"
-            >
-              {{ showQuotedText ? t('conversation.hideQuotedText') : t('conversation.showQuotedText') }}
-            </div>
-
-            <!-- Attachments -->
-            <BubbleAttachmentPreview :attachments="nonInlineAttachments" />
-
-            <!-- CSAT Response -->
-            <CSATResponseDisplay :message="message" />
-
-            <!-- omnichannel: the customer has seen up to this reply -->
-            <div v-if="seen && isOutgoing" class="text-xs text-muted-foreground self-end">
-              {{ t('conversation.seenByCustomer') }}
-            </div>
-            <!-- omnichannel: edited on Facebook in this session -->
-            <div v-if="editedText" class="text-xs italic text-muted-foreground self-end">
-              {{ t('conversation.editedTo', { text: editedText }) }}
-            </div>
-            <!-- omnichannel: recalled on Zalo/Facebook in this session -->
-            <div v-if="recalled" class="text-xs italic text-muted-foreground self-end">
-              {{ t('conversation.recalled') }}
-            </div>
-
-            <!-- Spinner for Pending Messages (outgoing only) -->
-            <Spinner v-if="isOutgoing && message.status === 'pending'" size="sm" />
-
-            <!-- Status Icons (outgoing only) -->
-            <div v-if="isOutgoing" class="flex items-center space-x-2 mt-2 self-end">
-              <Lock :size="12" v-if="isPrivateMessage" class="text-muted-foreground" />
-              <Check :size="14" v-if="showCheckCheck" class="text-success" />
-              <Tooltip v-if="message.meta?.continuity_emailed">
-                <TooltipTrigger>
-                  <Mail :size="12" class="text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{{ t('conversation.sentViaEmail') }}</p>
-                </TooltipContent>
-              </Tooltip>
-              <RotateCcw
-                size="12"
-                @click="retryMessage(message)"
-                class="cursor-pointer text-muted-foreground hover:text-foreground transition-colors duration-200"
-                v-if="showRetry"
-              />
-            </div>
-          </template>
+            </template>
+          </div>
+          <!-- omnichannel: customer reactions on Zalo/Facebook, shown like the apps do -->
+          <div
+            v-if="reactions.length"
+            class="absolute -bottom-3 right-3 flex items-center gap-0.5 rounded-full border border-border bg-background px-1.5 py-0.5 text-xs shadow-sm"
+            :title="reactionTitle"
+          >
+            <span v-for="r in reactions.slice(0, 3)" :key="r.emoji">{{ r.emoji }}</span>
+            <span v-if="reactionCount > 1" class="ml-0.5 text-muted-foreground">{{ reactionCount }}</span>
+          </div>
         </div>
 
         <!-- omnichannel: quote this customer message in the reply (appears on hover) -->
@@ -408,6 +423,8 @@ onMounted(async () => {
 const props = defineProps({
   // omnichannel: last agent reply the customer has seen
   seen: { type: Boolean, default: false },
+  // omnichannel: [{emoji, count, names}] from the gateway, most used first
+  reactions: { type: Array, default: () => [] },
   message: Object,
   direction: {
     type: String,
@@ -449,6 +466,11 @@ const aiAssistantRoute = computed(() => {
 })
 
 const isOutgoing = computed(() => props.direction === 'outgoing')
+
+const reactionCount = computed(() => props.reactions.reduce((n, r) => n + r.count, 0))
+const reactionTitle = computed(() =>
+  props.reactions.map((r) => `${r.emoji} ${r.names.length ? r.names.join(', ') : r.count}`).join('\n')
+)
 
 // omnichannel: member of a Zalo/Facebook group, shown instead of the group contact.
 const member = computed(() => groupSender(props.message))
