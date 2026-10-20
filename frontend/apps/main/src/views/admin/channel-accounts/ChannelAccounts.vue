@@ -113,38 +113,27 @@
                 <p class="text-sm text-center">{{ login.status?.message || t('admin.channelAccounts.scanQr') }}</p>
               </div>
 
-              <!-- Facebook: embedded browser or cookie -->
-              <Tabs v-else v-model="login.tab" class="w-full">
-                <TabsList>
-                  <TabsTrigger v-if="login.channel.browser_login" value="browser">
-                    {{ t('admin.channelAccounts.browser') }}
-                  </TabsTrigger>
-                  <TabsTrigger value="cookie">{{ t('admin.channelAccounts.cookie') }}</TabsTrigger>
-                </TabsList>
-                <TabsContent v-if="login.channel.browser_login" value="browser" class="space-y-2">
-                  <div v-if="!login.started" class="flex items-center gap-3">
-                    <Button @click="startLogin">{{ t('admin.channelAccounts.start') }}</Button>
-                  </div>
-                  <p v-if="login.status?.message" class="text-sm">{{ login.status.message }}</p>
-                  <iframe
-                    v-if="login.status?.vnc && !finished"
-                    :src="login.status.vnc"
-                    class="w-full aspect-[16/10] rounded-md border bg-black"
-                    referrerpolicy="no-referrer"
-                  />
+              <!-- Facebook: embedded browser (noVNC) -->
+              <div v-else class="space-y-2">
+                <div class="flex items-center gap-2 text-sm">
+                  <Spinner v-if="login.started && !finished && !login.status?.vnc" class="size-4" />
+                  <span>{{ login.status?.message }}</span>
+                </div>
+                <iframe
+                  v-if="login.status?.vnc && !finished"
+                  :src="login.status.vnc"
+                  class="w-full aspect-[16/10] rounded-md border bg-black"
+                  referrerpolicy="no-referrer"
+                />
+                <div class="flex gap-2">
+                  <Button v-if="!login.started || (finished && login.status?.status !== 'success')" @click="startLogin">
+                    {{ t('admin.channelAccounts.start') }}
+                  </Button>
                   <Button v-if="login.started && !finished" variant="outline" size="sm" @click="cancelLogin">
                     {{ t('admin.channelAccounts.cancelLogin') }}
                   </Button>
-                </TabsContent>
-                <TabsContent value="cookie" class="space-y-2">
-                  <Textarea v-model="login.cookie" rows="4" placeholder="c_user=...; xs=...; datr=...; fr=...;" />
-                  <p class="text-xs text-muted-foreground">{{ t('admin.channelAccounts.cookieHint') }}</p>
-                  <Button :disabled="login.saving || !login.cookie.trim()" @click="saveCookie">
-                    {{ t('admin.channelAccounts.saveCookie') }}
-                  </Button>
-                  <p v-if="login.cookieMessage" class="text-sm">{{ login.cookieMessage }}</p>
-                </TabsContent>
-              </Tabs>
+                </div>
+              </div>
             </template>
           </DialogContent>
         </Dialog>
@@ -180,11 +169,9 @@ import LoadingOverlay from '@main/components/layout/LoadingOverlay.vue'
 import { Button } from '@shared-ui/components/ui/button/index.js'
 import { Badge } from '@shared-ui/components/ui/badge/index.js'
 import { Input } from '@shared-ui/components/ui/input/index.js'
-import { Textarea } from '@shared-ui/components/ui/textarea/index.js'
 import { Spinner } from '@shared-ui/components/ui/spinner/index.js'
 import { Avatar, AvatarFallback, AvatarImage } from '@shared-ui/components/ui/avatar/index.js'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@shared-ui/components/ui/card/index.js'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shared-ui/components/ui/tabs/index.js'
 import {
   Dialog,
   DialogContent,
@@ -217,13 +204,14 @@ import api from '../../../api/index.js'
 
 const LIST_REFRESH_MS = 10000
 const LOGIN_POLL_MS = 2000
+const CLOSE_AFTER_SUCCESS_MS = 1500
 
 const { t } = useI18n()
 const emitter = useEmitter()
 const isLoading = ref(false)
 const channels = ref([])
 const busy = ref('')
-const login = ref(null) // {channel, name, locked, tab, started, status, cookie, saving, cookieMessage}
+const login = ref(null) // {channel, name, locked, started, status}
 const removing = ref(null)
 let listTimer = null
 let pollTimer = null
@@ -252,15 +240,11 @@ function openLogin (channel, name) {
     channel,
     name: name || '',
     locked: !!name,
-    tab: channel.browser_login ? 'browser' : 'cookie',
     started: false,
-    status: null,
-    cookie: '',
-    saving: false,
-    cookieMessage: ''
+    status: null
   }
-  // Zalo bắt đầu tạo QR ngay khi biết tên tài khoản.
-  if (name && channel.qr_login) startLogin()
+  // Biết tên tài khoản là bắt đầu luôn: Zalo tạo QR, Facebook mở trình duyệt.
+  if (name) startLogin()
 }
 
 function lockName () {
@@ -269,7 +253,7 @@ function lockName () {
     return
   }
   login.value.locked = true
-  if (login.value.channel.qr_login) startLogin()
+  startLogin()
 }
 
 async function startLogin () {
@@ -303,6 +287,7 @@ async function pollLogin () {
   if (current.status?.status === 'success') {
     toast(t('admin.channelAccounts.loginDone'))
     loadAccounts()
+    setTimeout(() => login.value === current && closeLogin(), CLOSE_AFTER_SUCCESS_MS)
     return
   }
   if (!isLoginFinished(current.status?.status)) schedulePoll()
@@ -316,23 +301,6 @@ async function cancelLogin () {
     if (login.value) login.value.status = { ...resp.data, status: 'cancelled' }
   } catch (error) {
     toast(errorMessage(error), 'destructive')
-  }
-}
-
-async function saveCookie () {
-  const current = login.value
-  current.saving = true
-  current.cookieMessage = ''
-  try {
-    await api.setChannelCookie(current.channel.channel, current.name, current.cookie.trim())
-    toast(t('admin.channelAccounts.loginDone'))
-    current.cookie = ''
-    closeLogin()
-    loadAccounts()
-  } catch (error) {
-    current.cookieMessage = errorMessage(error)
-  } finally {
-    current.saving = false
   }
 }
 

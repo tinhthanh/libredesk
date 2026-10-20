@@ -285,9 +285,6 @@ const getChannelAccounts = () => http.get('/gw/accounts')
 const startChannelLogin = (channel, name) => http.post(`${channelAccountPath(channel, name)}/login`)
 const getChannelLogin = (channel, name) => http.get(`${channelAccountPath(channel, name)}/login`)
 const cancelChannelLogin = (channel, name) => http.delete(`${channelAccountPath(channel, name)}/login`)
-// The bot checks the cookie with Facebook before saving: allow a slow answer.
-const setChannelCookie = (channel, name, cookie) =>
-  http.post(`${channelAccountPath(channel, name)}/cookie`, { cookie }, { timeout: 70000 })
 const restartChannelAccount = (channel, name) => http.post(`${channelAccountPath(channel, name)}/restart`)
 const removeChannelAccount = (channel, name) => http.delete(channelAccountPath(channel, name))
 const getTags = () => http.get('/api/v1/tags')
@@ -628,7 +625,6 @@ export default {
   startChannelLogin,
   getChannelLogin,
   cancelChannelLogin,
-  setChannelCookie,
   restartChannelAccount,
   removeChannelAccount,
   login,
