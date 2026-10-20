@@ -552,6 +552,7 @@
   "admin.channelAccounts.facebookHint": "Sign in to Facebook in the browser below, or paste the cookie of a browser that is already signed in.",
   "admin.channelAccounts.start": "Start",
   "admin.channelAccounts.state.dropped": "Signed out",
+  "admin.channelAccounts.state.disconnected": "Disconnected",
   "admin.channelAccounts.state.retrying": "Retrying",
   "admin.channelAccounts.state.running": "Connected",
   "admin.channelAccounts.state.starting": "Connecting",

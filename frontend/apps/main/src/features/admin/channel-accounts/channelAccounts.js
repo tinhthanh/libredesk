@@ -16,6 +16,27 @@ export function stateInfo (state) {
   return STATES[state] || STATES.stopped
 }
 
+// The bot reports its last error as {kind, message}; "session_expired" means
+// the platform signed the account out, so only signing in again helps.
+export function needsSignIn (account) {
+  return account?.error?.kind === 'session_expired'
+}
+
+// Badge for an account: a dropped account is "Signed out" only when the
+// session expired, otherwise it lost its connection and Reconnect may help.
+export function accountStatus (account) {
+  if (account?.state === 'dropped' && !needsSignIn(account)) {
+    return { variant: 'destructive', key: 'admin.channelAccounts.state.disconnected' }
+  }
+  return stateInfo(account?.state)
+}
+
+// Reason line under the account name (hidden while connected).
+export function accountReason (account) {
+  if (!account || account.state === 'running') return ''
+  return account.error?.message || ''
+}
+
 export function isValidAccountName (name) {
   return ACCOUNT_NAME_PATTERN.test(name || '')
 }

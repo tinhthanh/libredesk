@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { displayName, errorMessage, isLoginFinished, isValidAccountName, stateInfo } from './channelAccounts.js'
+import {
+  accountReason,
+  accountStatus,
+  displayName,
+  errorMessage,
+  isLoginFinished,
+  isValidAccountName,
+  needsSignIn,
+  stateInfo
+} from './channelAccounts.js'
 
 describe('channel accounts helpers', () => {
   it('maps bot states to badges, unknown as stopped', () => {
@@ -30,5 +39,17 @@ describe('channel accounts helpers', () => {
   it('prefers the platform display name', () => {
     expect(displayName({ name: 'acc2', profile: { displayName: 'Nguyễn Văn A' } })).toBe('Nguyễn Văn A')
     expect(displayName({ name: 'acc2', profile: null })).toBe('acc2')
+  })
+
+  it('tells signed-out accounts from disconnected ones', () => {
+    const expired = { state: 'dropped', error: { kind: 'session_expired', message: 'Phiên hết hạn' } }
+    const lost = { state: 'dropped', error: { kind: 'connection', message: 'Lỗi kết nối: x' } }
+    expect(needsSignIn(expired)).toBe(true)
+    expect(needsSignIn(lost)).toBe(false)
+    expect(accountStatus(expired).key).toBe('admin.channelAccounts.state.dropped')
+    expect(accountStatus(lost).key).toBe('admin.channelAccounts.state.disconnected')
+    expect(accountStatus({ state: 'running' }).variant).toBe('success')
+    expect(accountReason(lost)).toBe('Lỗi kết nối: x')
+    expect(accountReason({ state: 'running', error: lost.error })).toBe('')
   })
 })

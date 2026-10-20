@@ -40,15 +40,27 @@
                         {{ channel.label }} - {{ account.name }}
                         <span v-if="account.profile?.uid"> · {{ account.profile.uid }}</span>
                       </div>
+                      <div
+                        v-if="accountReason(account)"
+                        class="text-xs mt-0.5"
+                        :class="needsSignIn(account) ? 'text-destructive' : 'text-muted-foreground'"
+                      >
+                        {{ accountReason(account) }}
+                      </div>
                     </div>
-                    <Badge :variant="stateInfo(account.state).variant">
-                      {{ t(stateInfo(account.state).key) }}
+                    <Badge :variant="accountStatus(account).variant">
+                      {{ t(accountStatus(account).key) }}
                     </Badge>
                     <div class="flex gap-2">
-                      <Button size="sm" variant="outline" @click="openLogin(channel, account.name)">
+                      <Button
+                        size="sm"
+                        :variant="needsSignIn(account) ? 'default' : 'outline'"
+                        @click="openLogin(channel, account.name)"
+                      >
                         {{ t('admin.channelAccounts.relogin') }}
                       </Button>
                       <Button
+                        v-if="!needsSignIn(account)"
                         size="sm"
                         variant="outline"
                         :disabled="busy === key(channel, account.name)"
@@ -193,11 +205,13 @@ import {
 import { useEmitter } from '../../../composables/useEmitter.js'
 import { EMITTER_EVENTS } from '../../../constants/emitterEvents.js'
 import {
+  accountReason,
+  accountStatus,
   displayName,
   errorMessage,
   isLoginFinished,
   isValidAccountName,
-  stateInfo
+  needsSignIn
 } from '../../../features/admin/channel-accounts/channelAccounts.js'
 import api from '../../../api/index.js'
 
