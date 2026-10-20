@@ -53,12 +53,12 @@
 
       <div
         class="w-full md:w-4/5"
-        :class="{ 'flex justify-end items-center gap-2': isOutgoing }"
+        :class="{ 'flex justify-end items-center gap-2': isOutgoing, 'flex items-center gap-2': canQuote }"
         style="contain: inline-size"
       >
         <!-- Delete note menu (private notes, appears on hover, left of bubble) -->
         <div
-          v-if="canDeleteNote"
+          v-if="canDeleteNote || canRecall"
           class="flex-shrink-0 transition-opacity duration-200 can-hover:opacity-0 can-hover:group-hover:opacity-100 focus-within:!opacity-100"
         >
           <DropdownMenu>
@@ -69,11 +69,20 @@
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
+                v-if="canDeleteNote"
                 class="text-destructive focus:text-destructive"
                 @click="alertOpen = true"
               >
                 <Trash2 class="mr-2 h-4 w-4" />
                 {{ t('conversation.deletePrivateNote') }}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                v-if="canRecall"
+                class="text-destructive focus:text-destructive"
+                @click="recallOpen = true"
+              >
+                <Undo2 class="mr-2 h-4 w-4" />
+                {{ t('conversation.recallMessage') }}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -158,6 +167,11 @@
             <!-- CSAT Response -->
             <CSATResponseDisplay :message="message" />
 
+            <!-- omnichannel: recalled on Zalo/Facebook in this session -->
+            <div v-if="recalled" class="text-xs italic text-muted-foreground self-end">
+              {{ t('conversation.recalled') }}
+            </div>
+
             <!-- Spinner for Pending Messages (outgoing only) -->
             <Spinner v-if="isOutgoing && message.status === 'pending'" size="sm" />
 
@@ -181,6 +195,26 @@
               />
             </div>
           </template>
+        </div>
+
+        <!-- omnichannel: quote this customer message in the reply (appears on hover) -->
+        <div
+          v-if="canQuote"
+          class="flex-shrink-0 self-center transition-opacity duration-200 can-hover:opacity-0 can-hover:group-hover:opacity-100 focus-within:!opacity-100"
+        >
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                class="w-8 h-8 p-0 text-muted-foreground"
+                :aria-label="t('conversation.quoteReply')"
+                @click="quoteMessage"
+              >
+                <Reply class="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{{ t('conversation.quoteReply') }}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
@@ -235,6 +269,19 @@
     </div>
   </div>
 
+  <AlertDialog :open="recallOpen" @update:open="recallOpen = $event">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>{{ t('conversation.recallMessage') }}</AlertDialogTitle>
+        <AlertDialogDescription>{{ t('conversation.recallConfirm') }}</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>{{ t('globals.messages.cancel') }}</AlertDialogCancel>
+        <AlertDialogAction variant="destructive" @click="recallMessage">{{ t('conversation.recallMessage') }}</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
   <AlertDialog :open="alertOpen" @update:open="alertOpen = $event">
     <AlertDialogContent>
       <AlertDialogHeader>
@@ -256,7 +303,7 @@ import { computed, ref, onMounted, nextTick } from 'vue'
 import { useConversationStore } from '@main/stores/conversation'
 import { useUserStore } from '@main/stores/user'
 import { useI18n } from 'vue-i18n'
-import { Lock, Mail, RotateCcw, Check, Maximize2, Trash2, MoreHorizontal } from 'lucide-vue-next'
+import { Lock, Mail, RotateCcw, Check, Maximize2, Trash2, MoreHorizontal, Reply, Undo2 } from 'lucide-vue-next'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -285,8 +332,18 @@ import BubbleAttachmentPreview from '@main/features/conversation/message/attachm
 import MessageEnvelope from './MessageEnvelope.vue'
 import CSATResponseDisplay from './CSATResponseDisplay.vue'
 import api from '@main/api'
+import { useEmitter } from '@main/composables/useEmitter'
+import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
+import { errorMessage } from '@main/features/admin/channel-accounts/channelAccounts.js'
 import { containsQuoteMarkers } from '@shared-ui/utils/quotedContent.js'
-import { groupSender, stripGroupSender, senderAvatarURL } from '@main/utils/omnichannel.js'
+import {
+  groupSender,
+  isOmnichannelInbox,
+  quoteTarget,
+  replyTarget,
+  stripGroupSender,
+  senderAvatarURL
+} from '@main/utils/omnichannel.js'
 
 const extendedCssProperties = [...allowedCssProperties, 'transform', 'transform-origin']
 
@@ -332,6 +389,7 @@ const props = defineProps({
 const convStore = useConversationStore()
 const { t } = useI18n()
 const userStore = useUserStore()
+const emitter = useEmitter()
 
 const alertOpen = ref(false)
 
@@ -357,6 +415,20 @@ const isOutgoing = computed(() => props.direction === 'outgoing')
 
 // omnichannel: member of a Zalo/Facebook group, shown instead of the group contact.
 const member = computed(() => groupSender(props.message))
+
+// omnichannel: agents can quote a customer message; the gateway sends a native
+// quoted reply on Zalo/Facebook.
+const canQuote = computed(
+  () =>
+    !isOutgoing.value &&
+    !props.message.private &&
+    !!props.message.uuid &&
+    props.message.status !== 'pending' &&
+    isOmnichannelInbox(convStore.current)
+)
+const quoteMessage = () => {
+  replyTarget.value = quoteTarget(convStore.current?.uuid, props.message)
+}
 
 const getFullName = computed(() => {
   if (member.value) return member.value
@@ -403,6 +475,29 @@ const bubbleClasses = computed(() => ({
 
 const isPrivateMessage = computed(() => isOutgoing.value && props.message.private)
 const isDeleted = computed(() => !!props.message.meta?.deleted_at)
+// omnichannel: recall an agent reply on Zalo/Facebook (gateway /gw/messages/…/recall).
+const recallOpen = ref(false)
+const recalled = ref(false)
+const canRecall = computed(
+  () =>
+    isOutgoing.value &&
+    !props.message.private &&
+    !recalled.value &&
+    props.message.status === 'sent' &&
+    ['agent', 'ai_assistant'].includes(props.message.sender_type) &&
+    isOmnichannelInbox(convStore.current)
+)
+const recallMessage = async () => {
+  recallOpen.value = false
+  try {
+    await api.recallChannelMessage(props.message.uuid)
+    recalled.value = true
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { description: t('conversation.recalled') })
+  } catch (error) {
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: errorMessage(error) })
+  }
+}
+
 const canDeleteNote = computed(
   () =>
     isPrivateMessage.value &&

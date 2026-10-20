@@ -51,6 +51,27 @@
         @escapeKeyDown="isEditorFullscreen = false"
         :hide-close-button="true"
       >
+        <!-- omnichannel: quoted customer message -->
+        <div
+          v-if="activeQuote && messageType !== 'private_note'"
+          class="mb-2 flex items-start gap-2 rounded-md border-l-4 border-primary bg-muted/60 px-3 py-2 text-sm"
+        >
+          <Reply class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-medium text-muted-foreground">
+              {{ $t('conversation.replyingTo', { name: activeQuote.author }) }}
+            </div>
+            <div class="truncate">{{ activeQuote.text }}</div>
+          </div>
+          <button
+            type="button"
+            class="shrink-0 text-muted-foreground hover:text-foreground"
+            :aria-label="$t('conversation.removeQuote')"
+            @click="clearQuote"
+          >
+            <X class="h-4 w-4" />
+          </button>
+        </div>
         <ReplyBoxContent
           v-if="isEditorFullscreen"
           :isFullscreen="true"
@@ -111,6 +132,27 @@
       :class="{ '!bg-private': messageType === 'private_note', 'ai-generating': isGenerating }"
       v-if="!isCramped && !isEditorFullscreen"
     >
+      <!-- omnichannel: quoted customer message -->
+      <div
+        v-if="activeQuote && messageType !== 'private_note'"
+        class="mb-2 flex items-start gap-2 rounded-md border-l-4 border-primary bg-muted/60 px-3 py-2 text-sm"
+      >
+        <Reply class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div class="min-w-0 flex-1">
+          <div class="text-xs font-medium text-muted-foreground">
+            {{ $t('conversation.replyingTo', { name: activeQuote.author }) }}
+          </div>
+          <div class="truncate">{{ activeQuote.text }}</div>
+        </div>
+        <button
+          type="button"
+          class="shrink-0 text-muted-foreground hover:text-foreground"
+          :aria-label="$t('conversation.removeQuote')"
+          @click="clearQuote"
+        >
+          <X class="h-4 w-4" />
+        </button>
+      </div>
       <ReplyBoxContent
         ref="replyBoxContentRef"
         :isFullscreen="false"
@@ -167,7 +209,7 @@ import {
 } from '@shared-ui/components/ui/alert-dialog'
 import { Dialog, DialogContent } from '@shared-ui/components/ui/dialog'
 import { Button } from '@shared-ui/components/ui/button'
-import { Pencil, Paperclip } from 'lucide-vue-next'
+import { Pencil, Paperclip, Reply, X } from 'lucide-vue-next'
 import { useVisualViewportHeight } from '@main/composables/useVisualViewportHeight'
 import { useIsComposerCramped } from '@main/composables/useIsComposerCramped'
 import { useEmitter } from '@main/composables/useEmitter'
@@ -175,6 +217,7 @@ import { useFileUpload } from '@main/composables/useFileUpload'
 import { hasInlineImage, hasPendingInlineUpload } from '@main/composables/useInlineImageUpload'
 import ReplyBoxContent from '@/features/conversation/ReplyBoxContent.vue'
 import { UserTypeAgent } from '@/constants/user'
+import { quoteHTML, replyTarget } from '@main/utils/omnichannel.js'
 
 const { t } = useI18n()
 const conversationStore = useConversationStore()
@@ -200,6 +243,13 @@ const {
 
 const messageType = ref('reply')
 const currentConversationUUID = computed(() => conversationStore.current?.uuid || null)
+// omnichannel: quote picked on a customer message of this conversation.
+const activeQuote = computed(() =>
+  replyTarget.value && replyTarget.value.conversationUUID === currentConversationUUID.value ? replyTarget.value : null
+)
+const clearQuote = () => {
+  replyTarget.value = null
+}
 watch(
   currentConversationUUID,
   async (uuid, prevUuid) => {
@@ -357,7 +407,8 @@ const processSend = async (skipContactEmailCheck = false, skipMissingTagsCheck =
 
   // Add pending message to cache for instant display.
   if (hasContent) {
-    const savedContent = htmlContent.value
+    const quote = !isPrivate ? activeQuote.value : null
+    const savedContent = quote ? quoteHTML(quote) + htmlContent.value : htmlContent.value
     const author = {
       id: userStore.userID,
       first_name: userStore.firstName,
@@ -403,6 +454,7 @@ const processSend = async (skipContactEmailCheck = false, skipMissingTagsCheck =
 
     // Clear editor immediately.
     htmlContent.value = ''
+    if (quote) replyTarget.value = null
 
     try {
       isSending.value = true
@@ -428,7 +480,9 @@ const processSend = async (skipContactEmailCheck = false, skipMissingTagsCheck =
       hasMessageSendingErrored = true
       // Remove pending message and restore editor content.
       conversationStore.removePendingMessage(convUUID, tempUUID)
-      htmlContent.value = savedContent
+      // Restore the editor (without the quote markup) and the quote.
+      htmlContent.value = quote ? savedContent.slice(quoteHTML(quote).length) : savedContent
+      if (quote) replyTarget.value = quote
       emitter.emit(EMITTER_EVENTS.SHOW_TOAST, {
         variant: 'destructive',
         description: handleHTTPError(error).message

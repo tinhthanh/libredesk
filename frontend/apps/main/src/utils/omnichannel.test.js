@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { groupSender, isOmnichannelInbox, senderAvatarURL, stripGroupSender } from './omnichannel.js'
+import {
+  groupSender,
+  isOmnichannelInbox,
+  quoteHTML,
+  quoteTarget,
+  quoteText,
+  senderAvatarURL,
+  stripGroupSender
+} from './omnichannel.js'
 
 const group = { first_name: '👥 Nhóm A', last_name: '· Zalo acc2' }
 
@@ -21,5 +29,22 @@ describe('omnichannel group senders', () => {
     expect(isOmnichannelInbox({ inbox_name: 'Zalo - acc2' })).toBe(true)
     expect(isOmnichannelInbox({ inbox_name: 'Facebook - default' })).toBe(true)
     expect(isOmnichannelInbox({ inbox_name: 'Support' })).toBe(false)
+  })
+})
+
+describe('omnichannel quote replies', () => {
+  it('builds a target with the member name and one line of text', () => {
+    const msg = { uuid: 'm-1', type: 'incoming', author: group, content: '[Nguyễn Văn A]: giá   bao\nnhiêu?' }
+    expect(quoteTarget('c-1', msg)).toEqual({ conversationUUID: 'c-1', uuid: 'm-1', author: 'Nguyễn Văn A', text: 'giá bao nhiêu?' })
+    const one = { uuid: 'm-2', type: 'incoming', author: { first_name: 'Bình', last_name: '· Zalo acc2' }, content: '<p>hi</p>' }
+    expect(quoteTarget('c-1', one).author).toBe('Bình')
+    expect(quoteText('a'.repeat(200)).length).toBe(120)
+  })
+
+  it('escapes the quote HTML', () => {
+    expect(quoteHTML({ uuid: 'm"1', author: 'A<b>', text: 'x & y' })).toBe(
+      '<blockquote data-reply-uuid="m&quot;1"><p>A&lt;b&gt;: x &amp; y</p></blockquote>'
+    )
+    expect(quoteHTML(null)).toBe('')
   })
 })

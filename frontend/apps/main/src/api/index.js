@@ -287,6 +287,8 @@ const getChannelLogin = (channel, name) => http.get(`${channelAccountPath(channe
 const cancelChannelLogin = (channel, name) => http.delete(`${channelAccountPath(channel, name)}/login`)
 const restartChannelAccount = (channel, name) => http.post(`${channelAccountPath(channel, name)}/restart`)
 const removeChannelAccount = (channel, name) => http.delete(channelAccountPath(channel, name))
+// Recall an agent reply on Zalo/Facebook (the gateway adds a private note).
+const recallChannelMessage = (uuid) => http.post(`/gw/messages/${encodeURIComponent(uuid)}/recall`, {}, { timeout: 70000 })
 const getTags = () => http.get('/api/v1/tags')
 const importTags = (data) =>
   http.post('/api/v1/tags/import', data, {
@@ -627,6 +629,7 @@ export default {
   cancelChannelLogin,
   restartChannelAccount,
   removeChannelAccount,
+  recallChannelMessage,
   login,
   deleteUser,
   importAgents,
