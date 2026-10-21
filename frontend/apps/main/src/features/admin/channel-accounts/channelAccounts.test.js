@@ -3,12 +3,14 @@ import {
   accountReason,
   countAccountAlerts,
   accountStatus,
+  connectedAt,
   displayName,
   errorMessage,
   historyEntries,
   isLoginFinished,
   isValidAccountName,
   needsSignIn,
+  oauthFinished,
   stateInfo
 } from './channelAccounts.js'
 
@@ -81,5 +83,15 @@ describe('channel accounts helpers', () => {
     expect(entries[1].lastAt).not.toBe('')
     expect(entries[2].at).toBe('')
     expect(historyEntries({}, 'vi-VN')).toEqual([])
+  })
+
+  it('detects a finished Zalo OA grant by its new connected_at', () => {
+    const list = (at) => [{ channel: 'zalooa', accounts: [{ name: 'shop', profile: at ? { connected_at: at } : {} }] }]
+    expect(connectedAt(list('2026-10-21T10:00:00Z'), 'zalooa', 'shop')).toBe('2026-10-21T10:00:00Z')
+    expect(connectedAt(list(''), 'zalooa', 'other')).toBe('')
+    expect(oauthFinished(list(''), 'zalooa', 'shop', '')).toBe(false)
+    expect(oauthFinished(list('2026-10-21T10:00:00Z'), 'zalooa', 'shop', '')).toBe(true)
+    expect(oauthFinished(list('2026-10-21T10:00:00Z'), 'zalooa', 'shop', '2026-10-21T10:00:00Z')).toBe(false)
+    expect(oauthFinished(list('2026-10-21T11:00:00Z'), 'zalooa', 'shop', '2026-10-21T10:00:00Z')).toBe(true)
   })
 })

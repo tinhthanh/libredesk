@@ -274,10 +274,13 @@ const draftPreview = computed(() => {
   return ''
 })
 
-// omnichannel: inboxes created by the gateway are named "Zalo - acc" / "Facebook - acc".
+// omnichannel: inboxes created by the gateway are named "Zalo - acc" / "Facebook - acc"
+// / "Fanpage - page" / "Zalo OA - oa".
 const OMNI_CHANNELS = {
   Zalo: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',
-  Facebook: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+  Facebook: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300',
+  Fanpage: 'bg-blue-500/15 text-blue-700 dark:text-blue-300',
+  'Zalo OA': 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300'
 }
 const omniChannel = computed(() => {
   const label = (props.conversation.inbox_name || '').split(' - ')[0]

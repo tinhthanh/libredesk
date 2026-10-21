@@ -97,3 +97,17 @@ export function historyEntries (account, locale) {
     message: item.message || ''
   }))
 }
+
+// Zalo OA: the OA admin grants access on Zalo's page and the bot finishes on
+// its callback. connectedAt is the account's last grant time (or ''); the grant
+// is done once the account shows a different one.
+export function connectedAt (channels, channel, name) {
+  const found = (channels || []).find((c) => c.channel === channel)
+  const account = (found?.accounts || []).find((a) => a.name === name)
+  return account?.profile?.connected_at || ''
+}
+
+export function oauthFinished (channels, channel, name, before) {
+  const now = connectedAt(channels, channel, name)
+  return now !== '' && now !== before
+}

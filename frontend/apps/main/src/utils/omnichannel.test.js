@@ -68,4 +68,9 @@ describe('omnichannel quote replies', () => {
     expect(canRecallInbox({ inbox_name: 'Zalo - shop1' })).toBe(true)
     expect(canRecallInbox({ inbox_name: 'Email' })).toBe(false)
   })
+
+  it('treats Zalo OA inboxes as omnichannel without recall', () => {
+    expect(isOmnichannelInbox({ inbox_name: 'Zalo OA - shop' })).toBe(true)
+    expect(canRecallInbox({ inbox_name: 'Zalo OA - shop' })).toBe(false)
+  })
 })

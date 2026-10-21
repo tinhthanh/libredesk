@@ -69,7 +69,7 @@
                         {{ t('admin.channelAccounts.reconnect') }}
                       </Button>
                       <Button
-                        v-if="account.state === 'running' && !channel.token_login"
+                        v-if="account.state === 'running' && !channel.token_login && !channel.oauth_login"
                         size="sm"
                         variant="outline"
                         @click="openCompose(channel, account)"
@@ -119,7 +119,9 @@
                       ? 'admin.channelAccounts.scanQr'
                       : login?.channel.token_login
                         ? 'admin.channelAccounts.fanpageHint'
-                        : 'admin.channelAccounts.facebookHint'
+                        : login?.channel.oauth_login
+                          ? 'admin.channelAccounts.zaloOAHint'
+                          : 'admin.channelAccounts.facebookHint'
                   )
                 }}
               </DialogDescription>
@@ -162,6 +164,19 @@
                 <div class="flex justify-end">
                   <Button :disabled="login.started || !(login.token || '').trim()" @click="connectToken">
                     {{ t('admin.channelAccounts.connectPage') }}
+                  </Button>
+                </div>
+              </div>
+
+              <!-- Zalo OA: the OA admin grants access on Zalo's page (OAuth) -->
+              <div v-else-if="login.channel.oauth_login" class="space-y-2">
+                <div v-if="login.status?.message" class="flex items-center gap-2 text-sm">
+                  <Spinner v-if="login.status.status === 'running'" class="size-4" />
+                  <span :class="{ 'text-destructive': login.status.status === 'error' }">{{ login.status.message }}</span>
+                </div>
+                <div class="flex justify-end">
+                  <Button :disabled="login.started" @click="connectOAuth">
+                    {{ t('admin.channelAccounts.connectOA') }}
                   </Button>
                 </div>
               </div>
@@ -277,12 +292,14 @@ import { EMITTER_EVENTS } from '../../../constants/emitterEvents.js'
 import {
   accountReason,
   accountStatus,
+  connectedAt,
   displayName,
   errorMessage,
   historyEntries,
   isLoginFinished,
   isValidAccountName,
-  needsSignIn
+  needsSignIn,
+  oauthFinished
 } from '../../../features/admin/channel-accounts/channelAccounts.js'
 import api from '../../../api/index.js'
 import { setChannelAlerts } from '../../../features/admin/channel-accounts/useChannelAlerts.js'
@@ -290,6 +307,7 @@ import { setChannelAlerts } from '../../../features/admin/channel-accounts/useCh
 const LIST_REFRESH_MS = 10000
 const LOGIN_POLL_MS = 2000
 const CLOSE_AFTER_SUCCESS_MS = 1500
+const OAUTH_TIMEOUT_MS = 15 * 60 * 1000
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -332,8 +350,8 @@ function openLogin (channel, name) {
     token: ''
   }
   // Biết tên tài khoản là bắt đầu luôn: Zalo tạo QR, Facebook mở trình duyệt.
-  // Fanpage cần dán token trước.
-  if (name && !channel.token_login) startLogin()
+  // Fanpage cần dán token trước; Zalo OA cần bấm nút để mở cửa sổ Zalo.
+  if (name && !needsAction(channel)) startLogin()
 }
 
 function lockName () {
@@ -342,7 +360,58 @@ function lockName () {
     return
   }
   login.value.locked = true
-  if (!login.value.channel.token_login) startLogin()
+  if (!needsAction(login.value.channel)) startLogin()
+}
+
+function needsAction (channel) {
+  return channel.token_login || channel.oauth_login
+}
+
+// Zalo OA: open Zalo's grant page in a new window (opened inside the click so
+// the browser does not block it), then poll the accounts until the bot shows a
+// new grant time. Zalo's grant code and our state expire within 15 minutes.
+async function connectOAuth () {
+  const current = login.value
+  const win = window.open('', '_blank')
+  current.started = true
+  current.status = { status: 'running', message: t('admin.channelAccounts.oauthWaiting') }
+  current.before = connectedAt(channels.value, current.channel.channel, current.name)
+  current.deadline = Date.now() + OAUTH_TIMEOUT_MS
+  try {
+    const { data } = await api.startChannelOAuth(current.channel.channel, current.name)
+    if (!/^https:\/\//.test(data?.url || '')) throw new Error(t('admin.channelAccounts.oauthNoUrl'))
+    if (win) {
+      win.opener = null
+      win.location.href = data.url
+    } else {
+      window.open(data.url, '_blank', 'noopener')
+    }
+    clearTimeout(pollTimer)
+    pollTimer = setTimeout(pollOAuth, LOGIN_POLL_MS)
+  } catch (error) {
+    win?.close()
+    current.started = false
+    current.status = { status: 'error', message: errorMessage(error) }
+  }
+}
+
+async function pollOAuth () {
+  const current = login.value
+  if (!current?.started) return
+  await loadAccounts()
+  if (login.value !== current) return
+  if (oauthFinished(channels.value, current.channel.channel, current.name, current.before)) {
+    current.status = { status: 'success', message: t('admin.channelAccounts.loginDone') }
+    toast(t('admin.channelAccounts.loginDone'))
+    setTimeout(() => login.value === current && closeLogin(), CLOSE_AFTER_SUCCESS_MS)
+    return
+  }
+  if (Date.now() > current.deadline) {
+    current.started = false
+    current.status = { status: 'error', message: t('admin.channelAccounts.oauthExpired') }
+    return
+  }
+  pollTimer = setTimeout(pollOAuth, LOGIN_POLL_MS)
 }
 
 // Fanpage: the bot checks the token with Meta, subscribes the webhook and

@@ -26,9 +26,9 @@ export function senderAvatarURL(conversationUUID, name) {
 }
 
 // isOmnichannelInbox: inboxes the gateway creates are named "Zalo - acc" /
-// "Facebook - acc" / "Fanpage - page".
+// "Facebook - acc" / "Fanpage - page" / "Zalo OA - oa".
 export function isOmnichannelInbox(conversation) {
-  return /^(Zalo|Facebook|Fanpage) - /.test(conversation?.inbox_name || '')
+  return /^(Zalo|Facebook|Fanpage|Zalo OA) - /.test(conversation?.inbox_name || '')
 }
 
 // Quote replies: the agent picks a customer message, the reply box sends it as a
@@ -82,7 +82,8 @@ export function nextReaction(choice, reactions) {
   return mine ? '' : choice
 }
 
-// canRecallInbox: Messenger does not let a Page recall or edit what it sent.
+// canRecallInbox: Messenger does not let a Page recall or edit what it sent,
+// and the Zalo OA OpenAPI has no recall either.
 export function canRecallInbox(conversation) {
-  return isOmnichannelInbox(conversation) && !/^Fanpage - /.test(conversation?.inbox_name || '')
+  return isOmnichannelInbox(conversation) && !/^(Fanpage|Zalo OA) - /.test(conversation?.inbox_name || '')
 }

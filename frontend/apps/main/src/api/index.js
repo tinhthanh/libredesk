@@ -288,6 +288,8 @@ const cancelChannelLogin = (channel, name) => http.delete(`${channelAccountPath(
 const restartChannelAccount = (channel, name) => http.post(`${channelAccountPath(channel, name)}/restart`)
 const connectChannelToken = (channel, name, token) =>
   http.post(`${channelAccountPath(channel, name)}/token`, { token }, { timeout: 70000 })
+// Zalo OA: returns {url}, Zalo's page where the OA admin grants access.
+const startChannelOAuth = (channel, name) => http.post(`${channelAccountPath(channel, name)}/oauth`)
 const removeChannelAccount = (channel, name) => http.delete(channelAccountPath(channel, name))
 // Recall an agent reply on Zalo/Facebook (the gateway adds a private note).
 // Find a customer to message first (phone for Zalo, id/link for Facebook).
@@ -641,6 +643,7 @@ export default {
   cancelChannelLogin,
   restartChannelAccount,
   connectChannelToken,
+  startChannelOAuth,
   removeChannelAccount,
   recallChannelMessage,
   reactChannelMessage,
