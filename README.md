@@ -1,3 +1,5 @@
+> **Fork notice:** the `omnichannel` branch of this fork (from v2.8.0) adds the agent UI for the [omnichannel gateway](https://github.com/tinhthanh/omnichannel): Zalo, Facebook, Facebook Page and Zalo OA channel accounts, quoted replies, reactions, recall, typing and seen, group member names, and a Vietnamese translation. The backend is unchanged except that agents can start conversations in live chat inboxes. Feature list and build steps: `libredesk-ui/README.md` in the omnichannel repository. This branch is the AGPL source of the hosted build.
+
 <a href="https://zerodha.tech"><img src="https://zerodha.tech/static/images/github-badge.svg" align="right" alt="Zerodha Tech Badge" /></a>
 
 <br>
