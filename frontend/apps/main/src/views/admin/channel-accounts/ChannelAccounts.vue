@@ -11,8 +11,17 @@
                   <CardDescription v-if="channel.error" class="text-destructive">
                     {{ t('admin.channelAccounts.unavailable') }}: {{ channel.error }}
                   </CardDescription>
+                  <!-- omnichannel: Fanpage Web only receives, from a script on a Business Suite tab -->
+                  <CardDescription v-else-if="channel.web_bridge">
+                    {{ t('admin.channelAccounts.webBridgeHint') }}
+                  </CardDescription>
                 </div>
-                <Button size="sm" :disabled="!!channel.error" @click="openLogin(channel, null)">
+                <Button
+                  v-if="!channel.web_bridge"
+                  size="sm"
+                  :disabled="!!channel.error"
+                  @click="openLogin(channel, null)"
+                >
                   {{ t('admin.channelAccounts.add') }}
                 </Button>
               </CardHeader>
@@ -53,6 +62,7 @@
                     </Badge>
                     <div class="flex gap-2">
                       <Button
+                        v-if="!channel.web_bridge"
                         size="sm"
                         :variant="needsSignIn(account) ? 'default' : 'outline'"
                         @click="openLogin(channel, account.name)"
@@ -69,14 +79,20 @@
                         {{ t('admin.channelAccounts.reconnect') }}
                       </Button>
                       <Button
-                        v-if="account.state === 'running' && !channel.token_login && !channel.oauth_login"
+                        v-if="account.state === 'running' && !channel.token_login && !channel.oauth_login && !channel.web_bridge"
                         size="sm"
                         variant="outline"
                         @click="openCompose(channel, account)"
                       >
                         {{ t('admin.channelAccounts.newMessage') }}
                       </Button>
-                      <Button size="sm" variant="ghost" class="text-destructive" @click="askRemove(channel, account.name)">
+                      <Button
+                        v-if="!channel.web_bridge"
+                        size="sm"
+                        variant="ghost"
+                        class="text-destructive"
+                        @click="askRemove(channel, account.name)"
+                      >
                         {{ t('admin.channelAccounts.remove') }}
                       </Button>
                     </div>

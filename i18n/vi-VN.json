@@ -537,6 +537,7 @@
   "admin.channelAccounts.add": "Thêm tài khoản",
   "admin.channelAccounts.cancelLogin": "Huỷ đăng nhập",
   "admin.channelAccounts.empty": "Chưa có tài khoản nào.",
+  "admin.channelAccounts.webBridgeHint": "Chỉ nhận tin từ script trên tab Meta Business Suite; nhân viên trả lời khách trong Business Suite. Trang khai báo trong FBWEB_PAGES (.env). Mất tín hiệu nghĩa là tab đã đóng hoặc máy đã tắt.",
   "admin.channelAccounts.help": "Liên kết tài khoản Zalo, Facebook, Fanpage và Zalo OA với hộp thư. Mỗi tài khoản có hộp thư riêng; tin nhắn về ngay khi tài khoản được kết nối. Zalo: quét mã QR bằng ứng dụng Zalo. Facebook: đăng nhập trong trình duyệt nhúng. Fanpage: dán token Trang. Zalo OA: quản trị viên OA cấp quyền trên trang của Zalo.",
   "admin.channelAccounts.invalidName": "Tên tài khoản không hợp lệ.",
   "admin.channelAccounts.loginDone": "Đã kết nối tài khoản.",
