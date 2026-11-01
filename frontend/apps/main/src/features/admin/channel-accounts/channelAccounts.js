@@ -112,17 +112,25 @@ export function oauthFinished (channels, channel, name, before) {
   return now !== '' && now !== before
 }
 
-// Fanpage Web: suggested account name for a Page ("VetGo phần mềm" -> "vetgo-phan-mem").
+// Fanpage Web: suggested account name for a Page, short because it ends up in
+// the inbox name ("VetGo phần mềm quản lý" -> "vetgo-phan-mem"): first 3 words,
+// at most 20 characters, never cut inside a word unless the first word is longer.
 export function pageSlug (name) {
-  const slug = String(name || '')
+  const words = String(name || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[đĐ]/g, 'd')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40)
-    .replace(/-+$/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .slice(0, 3)
+  let slug = ''
+  for (const w of words) {
+    const next = slug ? `${slug}-${w}` : w
+    if (next.length > 20) break
+    slug = next
+  }
+  if (!slug && words.length) slug = words[0].slice(0, 20)
   return slug || 'trang'
 }
 

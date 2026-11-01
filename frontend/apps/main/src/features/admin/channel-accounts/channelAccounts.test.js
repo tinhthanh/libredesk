@@ -100,10 +100,12 @@ describe('channel accounts helpers', () => {
   })
 
   it('suggests a Fanpage Web account name from the Page name', () => {
-    expect(pageSlug('VetGo phần mềm quản lý phòng khám thú y')).toBe('vetgo-phan-mem-quan-ly-phong-kham-thu-y')
-    expect(pageSlug('Đà Lạt  Pet Shop!')).toBe('da-lat-pet-shop')
+    expect(pageSlug('VetGo phần mềm quản lý phòng khám thú y')).toBe('vetgo-phan-mem')
+    expect(pageSlug('8 Gian đồ Ăn Vặt,  Sinh Tố, Nước Ép')).toBe('8-gian-do')
+    expect(pageSlug('Đà Lạt  Pet Shop!')).toBe('da-lat-pet')
     expect(pageSlug('***')).toBe('trang')
-    expect(pageSlug('a'.repeat(39) + ' bc')).toBe('a'.repeat(39))
+    expect(pageSlug('a'.repeat(30) + ' bc')).toBe('a'.repeat(20))
+    expect(pageSlug('Bamboo Beauty Spa')).toBe('bamboo-beauty-spa')
     expect(isValidAccountName(pageSlug('VetGo Test'))).toBe(true)
   })
 
