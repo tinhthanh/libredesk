@@ -102,6 +102,19 @@ export const adminNavItems = [
         href: '/admin/channel-accounts',
         permission: 'inboxes:manage',
         icon: 'Link'
+      },
+      // omnichannel (D19): Telegram alerts and the daily canary, set in the UI.
+      {
+        titleKey: 'admin.channelAlerts.title',
+        href: '/admin/channel-alerts',
+        permission: 'inboxes:manage',
+        icon: 'BellRing'
+      },
+      {
+        titleKey: 'admin.canary.title',
+        href: '/admin/canary',
+        permission: 'inboxes:manage',
+        icon: 'ListChecks'
       }
     ]
   },

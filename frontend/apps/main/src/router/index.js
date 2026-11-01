@@ -364,6 +364,18 @@ const routes = [
             meta: { titleKey: 'admin.channelAccounts.title' }
           },
           {
+            path: 'channel-alerts',
+            name: 'channel-alerts',
+            component: () => import('@main/views/admin/channel-accounts/ChannelAlerts.vue'),
+            meta: { titleKey: 'admin.channelAlerts.title' }
+          },
+          {
+            path: 'canary',
+            name: 'canary',
+            component: () => import('@main/views/admin/channel-accounts/CanaryChecks.vue'),
+            meta: { titleKey: 'admin.canary.title' }
+          },
+          {
             path: 'notification',
             component: () => import('@main/features/admin/notification/NotificationSetting.vue'),
             meta: { titleKey: 'globals.terms.notification', titleCount: 2 }

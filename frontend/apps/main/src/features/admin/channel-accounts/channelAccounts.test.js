@@ -9,7 +9,9 @@ import {
   historyEntries,
   isLoginFinished,
   isValidAccountName,
+  canaryChecks,
   loginPending,
+  muteLabel,
   needsSignIn,
   pageSlug,
   oauthFinished,
@@ -110,5 +112,31 @@ describe('channel accounts helpers', () => {
     expect(loginPending([{ name: 'owner', state: 'listing' }], 'owner')).toBe(true)
     expect(loginPending([{ name: 'owner', state: 'ok' }], 'owner')).toBe(false)
     expect(loginPending([{ name: 'owner', state: 'error' }], 'owner')).toBe(false)
+  })
+
+  it('describes how long alerts stay muted', () => {
+    const t = (key, args) => key + (args ? ' ' + args.at : '')
+    expect(muteLabel(0, t, 'vi-VN')).toBe('admin.channelAlerts.mutedForever')
+    expect(muteLabel(1793530800, t, 'vi-VN')).toMatch(/^admin\.channelAlerts\.mutedUntil \S/)
+  })
+
+  it('lists canary problems and checks with their details', () => {
+    const run = {
+      report: {
+        problems: ';- container fb-bot: exited/none;',
+        canary: {
+          checks: [
+            { check: 'customer fbweb text', ok: true, http: 200, latency_s: 0.7, error: null },
+            { check: 'fbweb pages running', ok: false, not_running: { 'vetgo-test': 'dropped' }, bad: {} }
+          ]
+        }
+      }
+    }
+    expect(canaryChecks(run)).toEqual([
+      { check: 'container fb-bot: exited/none', ok: false, detail: '' },
+      { check: 'customer fbweb text', ok: true, detail: 'http: 200, latency_s: 0.7' },
+      { check: 'fbweb pages running', ok: false, detail: 'not_running: {"vetgo-test":"dropped"}' }
+    ])
+    expect(canaryChecks({})).toEqual([])
   })
 })

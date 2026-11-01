@@ -131,3 +131,31 @@ export function loginPending (logins, name) {
   const login = (logins || []).find((l) => l.name === name)
   return !login || login.state === 'listing'
 }
+
+// Alerts page: when a mute ends (Unix seconds, 0 = until switched back on).
+export function muteLabel (until, t, locale) {
+  if (!until) return t('admin.channelAlerts.mutedForever')
+  const at = new Date(until * 1000).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return t('admin.channelAlerts.mutedUntil', { at })
+}
+
+// Daily canary page: the checks of one stored run, with problems found by the
+// server script (containers, logs) first; detail is the check's extra fields.
+export function canaryChecks (run) {
+  const report = run?.report || {}
+  const problems = String(report.problems || '')
+    .split(';')
+    .map((p) => p.trim().replace(/^- /, ''))
+    .filter(Boolean)
+    .map((p) => ({ check: p, ok: false, detail: '' }))
+  const checks = (report.canary?.checks || []).map(({ check, ok, ...rest }) => ({
+    check,
+    ok: !!ok,
+    detail: Object.entries(rest)
+      .filter(([, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length) &&
+        !(typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length))
+      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+      .join(', ')
+  }))
+  return [...problems, ...checks]
+}

@@ -295,6 +295,15 @@ const removeChannelAccount = (channel, name) => http.delete(channelAccountPath(c
 const getFanpageWebLogins = () => http.get('/gw/fbweb/logins')
 const setFanpageWebPage = (name, body) => http.put(`/gw/fbweb/pages/${encodeURIComponent(name)}`, body)
 const refreshFanpageWebLogin = (login) => http.post(`/gw/fbweb/logins/${encodeURIComponent(login)}/refresh`)
+// Alerts and daily canary (D19).
+const getAlertSettings = () => http.get('/gw/settings/alerts')
+const saveAlertSettings = (body) => http.put('/gw/settings/alerts', body)
+const testAlert = () => http.post('/gw/settings/alerts/test', {}, { timeout: 30000 })
+const muteAlerts = (key, minutes) => http.put('/gw/settings/alerts/mute', { key, minutes })
+const getCanary = () => http.get('/gw/canary')
+const getCanaryRun = (run) => http.get(`/gw/canary/runs/${encodeURIComponent(run)}`)
+const saveCanarySettings = (body) => http.put('/gw/canary/settings', body)
+const runCanary = (mode) => http.post('/gw/canary/run', { mode })
 // Recall an agent reply on Zalo/Facebook (the gateway adds a private note).
 // Find a customer to message first (phone for Zalo, id/link for Facebook).
 const resolveChannelRecipient = (channel, name, to) =>
@@ -652,6 +661,14 @@ export default {
   getFanpageWebLogins,
   setFanpageWebPage,
   refreshFanpageWebLogin,
+  getAlertSettings,
+  saveAlertSettings,
+  testAlert,
+  muteAlerts,
+  getCanary,
+  getCanaryRun,
+  saveCanarySettings,
+  runCanary,
   recallChannelMessage,
   reactChannelMessage,
   editChannelMessage,
