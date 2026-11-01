@@ -11,13 +11,26 @@
                   <CardDescription v-if="channel.error" class="text-destructive">
                     {{ t('admin.channelAccounts.unavailable') }}: {{ channel.error }}
                   </CardDescription>
-                  <!-- omnichannel: Fanpage Web only receives, from a script on a Business Suite tab -->
+                  <!-- omnichannel: Fanpage Web, Pages picked from a Facebook login on an agent (D18) -->
                   <CardDescription v-else-if="channel.web_bridge">
                     {{ t('admin.channelAccounts.webBridgeHint') }}
                   </CardDescription>
                 </div>
+                <div v-if="channel.web_bridge" class="flex gap-2">
+                  <Button size="sm" variant="outline" :disabled="!!channel.error" @click="openPages('')">
+                    {{ t('admin.channelAccounts.fbweb.choosePages') }}
+                  </Button>
+                  <Button
+                    v-if="channel.browser_login"
+                    size="sm"
+                    :disabled="!!channel.error"
+                    @click="openLogin(channel, null)"
+                  >
+                    {{ t('admin.channelAccounts.fbweb.signIn') }}
+                  </Button>
+                </div>
                 <Button
-                  v-if="!channel.web_bridge"
+                  v-else
                   size="sm"
                   :disabled="!!channel.error"
                   @click="openLogin(channel, null)"
@@ -62,10 +75,10 @@
                     </Badge>
                     <div class="flex gap-2">
                       <Button
-                        v-if="!channel.web_bridge"
+                        v-if="!channel.web_bridge || (channel.browser_login && account.profile?.login)"
                         size="sm"
                         :variant="needsSignIn(account) ? 'default' : 'outline'"
-                        @click="openLogin(channel, account.name)"
+                        @click="openLogin(channel, channel.web_bridge ? account.profile.login : account.name)"
                       >
                         {{ t('admin.channelAccounts.relogin') }}
                       </Button>
@@ -87,7 +100,6 @@
                         {{ t('admin.channelAccounts.newMessage') }}
                       </Button>
                       <Button
-                        v-if="!channel.web_bridge"
                         size="sm"
                         variant="ghost"
                         class="text-destructive"
@@ -137,19 +149,25 @@
                         ? 'admin.channelAccounts.fanpageHint'
                         : login?.channel.oauth_login
                           ? 'admin.channelAccounts.zaloOAHint'
-                          : 'admin.channelAccounts.facebookHint'
+                          : login?.channel.web_bridge
+                            ? 'admin.channelAccounts.fbweb.loginHint'
+                            : 'admin.channelAccounts.facebookHint'
                   )
                 }}
               </DialogDescription>
             </DialogHeader>
 
             <div v-if="login && !login.locked" class="space-y-2">
-              <label class="text-sm font-medium">{{ t('admin.channelAccounts.accountName') }}</label>
+              <label class="text-sm font-medium">
+                {{ t(login.channel.web_bridge ? 'admin.channelAccounts.fbweb.loginName' : 'admin.channelAccounts.accountName') }}
+              </label>
               <div class="flex gap-2">
-                <Input v-model="login.name" placeholder="shop1" @keydown.enter="lockName" />
+                <Input v-model="login.name" :placeholder="login.channel.web_bridge ? 'owner' : 'shop1'" @keydown.enter="lockName" />
                 <Button @click="lockName">{{ t('admin.channelAccounts.start') }}</Button>
               </div>
-              <p class="text-xs text-muted-foreground">{{ t('admin.channelAccounts.accountNameHint') }}</p>
+              <p class="text-xs text-muted-foreground">
+                {{ t(login.channel.web_bridge ? 'admin.channelAccounts.fbweb.loginNameHint' : 'admin.channelAccounts.accountNameHint') }}
+              </p>
             </div>
 
             <template v-else-if="login">
@@ -250,12 +268,27 @@
           </DialogContent>
         </Dialog>
 
+        <FanpageWebPages
+          :open="pages.open"
+          :wait-for="pages.waitFor"
+          :reload="pages.reload"
+          @close="pages.open = false"
+          @changed="loadAccounts"
+          @toast="toast"
+          @relogin="(name) => openLogin(fbwebChannel(), name)"
+          @remove="(name) => askRemove(fbwebChannel(), name)"
+        />
+
         <AlertDialog :open="!!removing" @update:open="(open) => !open && (removing = null)">
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>{{ t('admin.channelAccounts.remove') }}</AlertDialogTitle>
               <AlertDialogDescription>
-                {{ t('admin.channelAccounts.removeConfirm', { name: removing ? `${removing.channel.label} - ${removing.name}` : '' }) }}
+                {{
+                  t(removing?.channel.web_bridge ? 'admin.channelAccounts.fbweb.removeConfirm' : 'admin.channelAccounts.removeConfirm', {
+                    name: removing ? `${removing.channel.label} - ${removing.name}` : ''
+                  })
+                }}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -279,6 +312,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AdminSplitLayout from '@/layouts/admin/AdminSplitLayout.vue'
 import LoadingOverlay from '@main/components/layout/LoadingOverlay.vue'
+import FanpageWebPages from './FanpageWebPages.vue'
 import { Button } from '@shared-ui/components/ui/button/index.js'
 import { Badge } from '@shared-ui/components/ui/badge/index.js'
 import { Input } from '@shared-ui/components/ui/input/index.js'
@@ -333,6 +367,7 @@ const channels = ref([])
 const busy = ref('')
 const login = ref(null) // {channel, name, locked, started, status}
 const removing = ref(null)
+const pages = ref({ open: false, waitFor: '', reload: 0 }) // Fanpage Web: Page chooser
 let listTimer = null
 let pollTimer = null
 
@@ -356,7 +391,17 @@ async function loadAccounts () {
   }
 }
 
+function fbwebChannel () {
+  return channels.value.find((c) => c.web_bridge)
+}
+
+function openPages (waitFor) {
+  pages.value = { ...pages.value, open: true, waitFor }
+}
+
 function openLogin (channel, name) {
+  if (!channel) return
+  pages.value.open = false
   login.value = {
     channel,
     name: name || '',
@@ -480,7 +525,13 @@ async function pollLogin () {
   if (current.status?.status === 'success') {
     toast(t('admin.channelAccounts.loginDone'))
     loadAccounts()
-    setTimeout(() => login.value === current && closeLogin(), CLOSE_AFTER_SUCCESS_MS)
+    // Fanpage Web: the login is only a session; pick its Pages next.
+    const next = current.channel.web_bridge ? current.name : null
+    setTimeout(() => {
+      if (login.value !== current) return
+      closeLogin()
+      if (next) openPages(next)
+    }, CLOSE_AFTER_SUCCESS_MS)
     return
   }
   if (!isLoginFinished(current.status?.status)) schedulePoll()
@@ -574,6 +625,7 @@ async function confirmRemove () {
   try {
     await api.removeChannelAccount(channel.channel, name)
     await loadAccounts()
+    pages.value.reload++ // the chooser, if open, shows the Page as free again
   } catch (error) {
     toast(errorMessage(error), 'destructive')
   }

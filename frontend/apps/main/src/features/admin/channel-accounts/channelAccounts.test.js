@@ -9,7 +9,9 @@ import {
   historyEntries,
   isLoginFinished,
   isValidAccountName,
+  loginPending,
   needsSignIn,
+  pageSlug,
   oauthFinished,
   stateInfo
 } from './channelAccounts.js'
@@ -93,5 +95,20 @@ describe('channel accounts helpers', () => {
     expect(oauthFinished(list('2026-10-21T10:00:00Z'), 'zalooa', 'shop', '')).toBe(true)
     expect(oauthFinished(list('2026-10-21T10:00:00Z'), 'zalooa', 'shop', '2026-10-21T10:00:00Z')).toBe(false)
     expect(oauthFinished(list('2026-10-21T11:00:00Z'), 'zalooa', 'shop', '2026-10-21T10:00:00Z')).toBe(true)
+  })
+
+  it('suggests a Fanpage Web account name from the Page name', () => {
+    expect(pageSlug('VetGo phần mềm quản lý phòng khám thú y')).toBe('vetgo-phan-mem-quan-ly-phong-kham-thu-y')
+    expect(pageSlug('Đà Lạt  Pet Shop!')).toBe('da-lat-pet-shop')
+    expect(pageSlug('***')).toBe('trang')
+    expect(pageSlug('a'.repeat(39) + ' bc')).toBe('a'.repeat(39))
+    expect(isValidAccountName(pageSlug('VetGo Test'))).toBe(true)
+  })
+
+  it('waits for a Fanpage Web login until an agent has listed its Pages', () => {
+    expect(loginPending([], 'owner')).toBe(true)
+    expect(loginPending([{ name: 'owner', state: 'listing' }], 'owner')).toBe(true)
+    expect(loginPending([{ name: 'owner', state: 'ok' }], 'owner')).toBe(false)
+    expect(loginPending([{ name: 'owner', state: 'error' }], 'owner')).toBe(false)
   })
 })

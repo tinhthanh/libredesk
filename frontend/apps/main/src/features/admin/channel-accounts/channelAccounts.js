@@ -111,3 +111,23 @@ export function oauthFinished (channels, channel, name, before) {
   const now = connectedAt(channels, channel, name)
   return now !== '' && now !== before
 }
+
+// Fanpage Web: suggested account name for a Page ("VetGo phần mềm" -> "vetgo-phan-mem").
+export function pageSlug (name) {
+  const slug = String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/g, '')
+  return slug || 'trang'
+}
+
+// Fanpage Web: a login still listing its Pages (or not yet seen by an agent).
+export function loginPending (logins, name) {
+  const login = (logins || []).find((l) => l.name === name)
+  return !login || login.state === 'listing'
+}

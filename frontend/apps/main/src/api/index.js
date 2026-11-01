@@ -291,6 +291,10 @@ const connectChannelToken = (channel, name, token) =>
 // Zalo OA: returns {url}, Zalo's page where the OA admin grants access.
 const startChannelOAuth = (channel, name) => http.post(`${channelAccountPath(channel, name)}/oauth`)
 const removeChannelAccount = (channel, name) => http.delete(channelAccountPath(channel, name))
+// Fanpage Web (D18): Facebook logins on the agents with their Pages, pick a Page.
+const getFanpageWebLogins = () => http.get('/gw/fbweb/logins')
+const setFanpageWebPage = (name, body) => http.put(`/gw/fbweb/pages/${encodeURIComponent(name)}`, body)
+const refreshFanpageWebLogin = (login) => http.post(`/gw/fbweb/logins/${encodeURIComponent(login)}/refresh`)
 // Recall an agent reply on Zalo/Facebook (the gateway adds a private note).
 // Find a customer to message first (phone for Zalo, id/link for Facebook).
 const resolveChannelRecipient = (channel, name, to) =>
@@ -645,6 +649,9 @@ export default {
   connectChannelToken,
   startChannelOAuth,
   removeChannelAccount,
+  getFanpageWebLogins,
+  setFanpageWebPage,
+  refreshFanpageWebLogin,
   recallChannelMessage,
   reactChannelMessage,
   editChannelMessage,
