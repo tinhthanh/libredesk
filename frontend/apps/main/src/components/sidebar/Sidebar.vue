@@ -260,7 +260,7 @@ const viewToDelete = ref(null)
 
 <template>
   <SidebarProvider
-    style="--sidebar-width: 14rem"
+    style="--sidebar-width: 14.75rem"
     :default-open="sidebarOpen"
     v-on:update:open="sidebarOpen = $event"
   >
@@ -681,8 +681,12 @@ const viewToDelete = ref(null)
 </template>
 
 <style scoped>
+/* omnichannel: the rail ends at 3.375rem (0.375rem app padding + 3rem), so the
+ * old ml-[3.2rem] slid this panel under its border. Leave a 0.375rem gap on
+ * both sides: the gap slot is --sidebar-width wide, the panel 0.75rem less. */
 :deep(.sidebar-secondary) {
-  @apply border border-sidebar-border ml-[3.2rem] rounded-lg overflow-hidden;
+  @apply border border-sidebar-border ml-[3.75rem] rounded-lg overflow-hidden;
+  width: calc(var(--sidebar-width) - 0.75rem) !important;
   top: 0.40rem !important;
   bottom: 0.35rem !important;
   height: auto !important;
