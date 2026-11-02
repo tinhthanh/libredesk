@@ -836,6 +836,8 @@
   "conversation.recallMessage": "Recall message",
   "conversation.recallConfirm": "Recall this message? The customer will no longer see it on Zalo/Facebook. A private note keeps a record.",
   "conversation.recalled": "Recalled",
+  "conversation.ownerReply": "Account owner",
+  "conversation.ownerReplyHint": "The account owner replied directly from the phone or another app",
   "conversation.editMessage": "Edit message",
   "conversation.editHint": "The customer sees the new text on Facebook. The original stays here and a private note records the change.",
   "conversation.editedTo": "Edited: {text}",

@@ -6,8 +6,17 @@
       class="mb-1 flex items-center gap-1"
       :class="isOutgoing ? 'pr-2 md:pr-[47px]' : 'pl-10 md:pl-[47px]'"
     >
+      <!-- omnichannel: the account owner replied from the phone or another app -->
+      <span
+        v-if="owner"
+        class="inline-flex items-center gap-1 text-muted-foreground text-sm font-medium"
+        :title="t('conversation.ownerReplyHint')"
+      >
+        <Smartphone :size="14" />
+        {{ owner.sender || t('conversation.ownerReply') }}
+      </span>
       <router-link
-        v-if="!isOutgoing"
+        v-else-if="!isOutgoing"
         :to="{ name: 'contact-detail', params: { id: message.author?.id } }"
         class="cursor-pointer text-muted-foreground text-sm font-medium hover:underline hover:text-foreground transition-colors duration-200"
       >
@@ -94,8 +103,8 @@
 
         <!-- omnichannel: wrapper so the reaction pill can sit on the bubble's edge -->
         <div
-          class="relative flex flex-col max-w-full md:min-w-[30%]"
-          :class="{ 'mb-3': reactions.length }"
+          class="relative flex flex-col max-w-full"
+          :class="{ 'mb-3': reactions.length, 'md:min-w-[30%]': !stickerOnly }"
         >
           <div
             class="flex flex-col justify-end message-bubble !w-full"
@@ -112,6 +121,7 @@
 
               <!-- Message Content -->
               <div
+                v-if="!stickerOnly && !(owner && !owner.body)"
                 ref="contentWrapperEl"
                 class="relative"
                 :class="{ 'max-h-[400px] overflow-hidden': isExpandable && !isExpanded }"
@@ -274,6 +284,13 @@
       <!-- Avatar (right for outgoing) -->
       <template v-if="isOutgoing">
         <div v-if="groupWithPrev" class="w-8 flex-shrink-0" />
+        <div
+          v-else-if="owner"
+          class="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full bg-secondary text-muted-foreground"
+          :title="t('conversation.ownerReplyHint')"
+        >
+          <Smartphone :size="16" />
+        </div>
         <router-link
           v-else-if="canManageAI"
           :to="aiAssistantRoute"
@@ -370,7 +387,7 @@ import { computed, ref, onMounted, nextTick } from 'vue'
 import { useConversationStore } from '@main/stores/conversation'
 import { useUserStore } from '@main/stores/user'
 import { useI18n } from 'vue-i18n'
-import { Lock, Mail, RotateCcw, Check, Maximize2, Trash2, MoreHorizontal, Reply, Undo2, Pencil, SmilePlus } from 'lucide-vue-next'
+import { Lock, Mail, RotateCcw, Check, Maximize2, Trash2, MoreHorizontal, Reply, Undo2, Pencil, SmilePlus, Smartphone } from 'lucide-vue-next'
 import { Popover, PopoverContent, PopoverTrigger } from '@shared-ui/components/ui/popover'
 import {
   DropdownMenu,
@@ -417,7 +434,9 @@ import {
   canRecallInbox,
   groupSender,
   isOmnichannelInbox,
+  isStickerOnly,
   nextReaction,
+  ownerReply,
   quoteTarget,
   REACTION_CHOICES,
   replyTarget,
@@ -562,16 +581,29 @@ const sanitizedContent = computed(() => {
     return t('globals.messages.pleaseRateConversation')
   }
   if (member.value) return stripGroupSender(props.message.content)
+  if (owner.value) return owner.value.body
   return props.message.content || ''
 })
+
+// omnichannel: owner reply note, its long heading turned into a chip
+const owner = computed(() =>
+  ownerReply(props.message.content, props.message.attachments?.length > 0)
+)
 
 const nonInlineAttachments = computed(() =>
   props.message.attachments.filter((attachment) => attachment.disposition !== 'inline')
 )
 
+// omnichannel: a lone sticker has no bubble around it.
+const stickerOnly = computed(
+  () => !isDeleted.value && isStickerOnly(sanitizedContent.value, props.message.attachments)
+)
+
 const bubbleClasses = computed(() => ({
-  'bg-private': isOutgoing.value && props.message.private,
-  'bg-secondary border border-border': isOutgoing.value && !props.message.private,
+  '!border-0 !bg-transparent !p-0 !shadow-none md:!min-w-0': stickerOnly.value,
+  'bg-private': isOutgoing.value && props.message.private && !stickerOnly.value,
+  'bg-secondary border border-border':
+    isOutgoing.value && !props.message.private && !stickerOnly.value,
   'opacity-50 animate-pulse': isOutgoing.value && props.message.status === 'pending',
   'border-destructive': isOutgoing.value && props.message.status === 'failed',
   relative: isOutgoing.value,

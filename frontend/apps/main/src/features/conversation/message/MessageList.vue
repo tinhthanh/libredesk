@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { groupSender, isOmnichannelInbox } from '@main/utils/omnichannel.js'
+import { groupSender, isOmnichannelInbox, ownerReply } from '@main/utils/omnichannel.js'
 import api from '@main/api'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
@@ -285,6 +285,8 @@ watch(
 
 const GROUP_WINDOW_MS = 60_000
 
+const isOwnerReply = (m) => ownerReply(m.content) !== null
+
 const canGroup = (a, b) => {
   if (!a || !b) return false
   if (a.type === 'activity' || b.type === 'activity') return false
@@ -298,6 +300,9 @@ const canGroup = (a, b) => {
   // omnichannel: in a group contact, a new "[Sender]: " starts a new group.
   const bMember = groupSender(b)
   if (bMember && bMember !== groupSender(a)) return false
+  // omnichannel: owner replies and other gateway notes share the System author;
+  // keep them apart so each owner run starts with its phone chip.
+  if (isOwnerReply(a) !== isOwnerReply(b)) return false
 
   const aBucket = Math.floor(new Date(a.created_at).getTime() / GROUP_WINDOW_MS)
   const bBucket = Math.floor(new Date(b.created_at).getTime() / GROUP_WINDOW_MS)

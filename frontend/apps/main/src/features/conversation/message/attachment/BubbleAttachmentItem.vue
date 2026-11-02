@@ -1,6 +1,17 @@
 <template>
+  <!-- omnichannel: stickers whole and frameless, like Messenger and Zalo show them;
+       natural size up to 128px so small ones stay sharp (inline style beats
+       the bubble's `* { max-width: 100% }`). -->
+  <img
+    v-if="sticker"
+    :src="attachment.url"
+    :alt="attachment.name"
+    class="block shrink-0 w-auto h-auto object-contain cursor-pointer"
+    style="max-width: 8rem; max-height: 8rem"
+    @click="onClick"
+  />
   <!-- omnichannel: play videos inline instead of showing a file card. -->
-  <div v-if="isVideo" class="group relative w-72 max-w-full rounded-md border overflow-hidden bg-black">
+  <div v-else-if="isVideo" class="group relative w-72 max-w-full rounded-md border overflow-hidden bg-black">
     <video
       :src="attachment.url"
       controls
@@ -85,6 +96,7 @@ import { computed, ref } from 'vue'
 import { formatBytes, getThumbFilepath } from '@shared-ui/utils/file'
 import DownloadLink from '@/components/DownloadLink.vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@shared-ui/components/ui/popover'
+import { isSticker } from '@main/utils/omnichannel.js'
 import {
   FileText,
   FileSpreadsheet,
@@ -115,6 +127,8 @@ const isImage = computed(() => (props.attachment.content_type || '').startsWith(
 const isAudio = computed(() => (props.attachment.content_type || '').startsWith('audio/'))
 
 const isVideo = computed(() => (props.attachment.content_type || '').startsWith('video/'))
+
+const sticker = computed(() => isSticker(props.attachment))
 
 const ext = computed(() => {
   const parts = (props.attachment.name || '').split('.')

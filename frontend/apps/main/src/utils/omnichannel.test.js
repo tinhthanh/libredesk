@@ -3,7 +3,12 @@ import {
   groupSender,
   canRecallInbox,
   isOmnichannelInbox,
+  isSticker,
+  isStickerOnly,
   nextReaction,
+  omniChannel,
+  ownerPreview,
+  ownerReply,
   REACTION_CHOICES,
   quoteHTML,
   quoteTarget,
@@ -77,5 +82,68 @@ describe('omnichannel quote replies', () => {
   it('treats Zalo OA inboxes as omnichannel without recall', () => {
     expect(isOmnichannelInbox({ inbox_name: 'Zalo OA - shop' })).toBe(true)
     expect(canRecallInbox({ inbox_name: 'Zalo OA - shop' })).toBe(false)
+  })
+})
+
+describe('omnichannel channel of an inbox', () => {
+  it('tells the five gateway channels apart', () => {
+    expect(omniChannel({ inbox_name: 'Zalo - acc2' })).toBe('zalo')
+    expect(omniChannel({ inbox_name: 'Zalo OA - shop' })).toBe('zalo-oa')
+    expect(omniChannel({ inbox_name: 'Facebook - default' })).toBe('facebook')
+    expect(omniChannel({ inbox_name: 'Fanpage - tuankhai' })).toBe('fanpage')
+    expect(omniChannel({ inbox_name: 'Fanpage Web - vetgo' })).toBe('fanpage-web')
+  })
+
+  it('returns nothing for other inboxes', () => {
+    expect(omniChannel({ inbox_name: 'Support' })).toBe('')
+    expect(omniChannel({ inbox_name: 'Zalo' })).toBe('')
+    expect(omniChannel(null)).toBe('')
+  })
+})
+
+describe('omnichannel stickers', () => {
+  const sticker = { name: 'sticker.webp', content_type: 'image/webp' }
+
+  it('recognises the names every bot gives a sticker', () => {
+    expect(isSticker(sticker)).toBe(true)
+    expect(isSticker({ name: 'sticker-2.png', content_type: 'image/png' })).toBe(true)
+    expect(isSticker({ name: 'sticker-21458.webp', content_type: 'image/webp' })).toBe(true)
+    expect(isSticker({ name: 'anh.png', content_type: 'image/png' })).toBe(false)
+    expect(isSticker({ name: 'stickers-list.pdf', content_type: 'application/pdf' })).toBe(false)
+    expect(isSticker({ name: 'sticker.mp4', content_type: 'video/mp4' })).toBe(false)
+  })
+
+  it('draws a sticker bare only when it is alone and has no text', () => {
+    expect(isStickerOnly('', [sticker])).toBe(true)
+    expect(isStickerOnly('<p></p>', [sticker])).toBe(true)
+    expect(isStickerOnly('[Nguyễn A]: ', [sticker])).toBe(true)
+    expect(isStickerOnly('Xin chào', [sticker])).toBe(false)
+    expect(isStickerOnly('', [sticker, { name: 'anh.png', content_type: 'image/png' }])).toBe(false)
+    expect(isStickerOnly('', [{ name: 'anh.png', content_type: 'image/png' }])).toBe(false)
+    expect(isStickerOnly('', [])).toBe(false)
+  })
+})
+
+describe('omnichannel owner replies', () => {
+  const head = '<p><strong>👤 Chủ tài khoản trả lời trực tiếp (điện thoại/ứng dụng khác)</strong> · Chủ tài khoản</p>'
+
+  it('splits the gateway heading from the reply', () => {
+    expect(ownerReply(head + '<p>Xin chào</p>', false)).toEqual({ sender: 'Chủ tài khoản', body: '<p>Xin chào</p>' })
+    expect(ownerReply('<p><strong>👤 Chủ tài khoản trả lời trực tiếp (x)</strong> · An &amp; Bình</p><p>ok</p>', false).sender).toBe('An & Bình')
+    expect(ownerReply('<p>Xin chào</p>', false)).toBe(null)
+    expect(ownerReply('<p><strong>✏️ Tin nhắn đã được sửa</strong></p>', false)).toBe(null)
+  })
+
+  it('drops a media label only when the file is attached', () => {
+    expect(ownerReply(head + '<p>🖼️ Ảnh</p>', true).body).toBe('')
+    expect(ownerReply(head + '<p>🎬 Video · 0:11</p>', true).body).toBe('')
+    expect(ownerReply(head + '<p>📎 bao-gia.pdf</p>', true).body).toBe('')
+    expect(ownerReply(head + '<p>🖼️ Ảnh</p>', false).body).toBe('<p>🖼️ Ảnh</p>')
+    expect(ownerReply(head + '<p>Gửi anh ảnh</p>', true).body).toBe('<p>Gửi anh ảnh</p>')
+  })
+
+  it('shortens the list preview', () => {
+    expect(ownerPreview('👤 Chủ tài khoản trả lời trực tiếp (điện thoại/ứng dụng khác). · Chủ tài khoản Xin chao')).toBe('Xin chao')
+    expect(ownerPreview('Xin chao')).toBe(null)
   })
 })

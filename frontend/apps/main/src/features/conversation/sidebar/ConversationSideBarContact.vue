@@ -10,8 +10,10 @@
             {{ conversation?.contact?.first_name?.toUpperCase().substring(0, 2) }}
           </AvatarFallback>
         </Avatar>
+        <ChannelBadge :conversation="conversation" class="bottom-0 right-0 w-6 h-6" />
+        <!-- omnichannel: gateway inboxes are "livechat" but have no widget presence -->
         <StatusDot
-          v-if="isLivechat"
+          v-if="isLivechat && !isOmni"
           :status="contactStatus"
           size="lg"
           class="absolute bottom-1 right-1 border-2 border-background"
@@ -110,6 +112,7 @@
 
 <script setup>
 import { isOmnichannelInbox } from '@main/utils/omnichannel.js'
+import ChannelBadge from '@main/features/conversation/ChannelBadge.vue'
 import { computed, ref, onMounted } from 'vue'
 import { ViewVerticalIcon } from '@radix-icons/vue'
 import { Button } from '@shared-ui/components/ui/button'

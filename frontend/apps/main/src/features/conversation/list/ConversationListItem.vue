@@ -14,7 +14,7 @@
           <!-- Avatar with channel indicator (checkbox overlays on hover / when selecting) -->
           <div class="relative flex-shrink-0 w-10 h-10">
             <div
-              class="transition-opacity"
+              class="relative transition-opacity"
               :class="avatarOpacityClass"
               :aria-hidden="showCheckbox"
             >
@@ -27,6 +27,7 @@
                   {{ conversation.contact.first_name.substring(0, 2).toUpperCase() }}
                 </AvatarFallback>
               </Avatar>
+              <ChannelBadge :conversation="conversation" class="-bottom-0.5 -right-0.5 w-4 h-4" />
             </div>
             <div
               v-if="canBulkAct"
@@ -60,7 +61,8 @@
                   <TooltipContent>{{ contactFullName }}</TooltipContent>
                 </Tooltip>
                 <div class="flex items-center gap-1 flex-shrink-0">
-                  <Tooltip>
+                  <!-- omnichannel: the avatar badge shows the channel instead -->
+                  <Tooltip v-if="!omniChannel">
                     <TooltipTrigger asChild>
                       <component
                         :is="conversation.inbox_channel === 'livechat' ? MessageSquare : Mail"
@@ -110,6 +112,13 @@
                 <template v-else-if="hasDraftForConversation && !isCurrent">
                   <span class="font-medium text-foreground">{{ $t('globals.terms.draft') }}:</span>
                   {{ draftPreview }}
+                </template>
+                <!-- omnichannel: owner replied from the phone, shown as an icon -->
+                <template v-else-if="ownerLastMessage !== null">
+                  <Smartphone
+                    class="text-muted-foreground inline-block align-text-bottom mr-0.5"
+                    :size="14"
+                  />{{ ownerLastMessage }}
                 </template>
                 <template v-else>
                   <Reply
@@ -176,7 +185,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getRelativeTime } from '@shared-ui/utils/datetime.js'
-import { Mail, MessageSquare, Reply, MailOpen, SquareCheck } from 'lucide-vue-next'
+import { Mail, MessageSquare, Reply, MailOpen, SquareCheck, Smartphone } from 'lucide-vue-next'
 import { Avatar, AvatarFallback, AvatarImage } from '@shared-ui/components/ui/avatar'
 import {
   ContextMenu,
@@ -185,12 +194,14 @@ import {
   ContextMenuTrigger
 } from '@shared-ui/components/ui/context-menu'
 import SlaBadge from '@main/features/sla/SlaBadge.vue'
+import ChannelBadge from '@main/features/conversation/ChannelBadge.vue'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shared-ui/components/ui/tooltip'
 import { Checkbox } from '@shared-ui/components/ui/checkbox'
 import { useConversationStore } from '@main/stores/conversation'
 import { useAppSettingsStore } from '@main/stores/appSettings'
 import { useBulkActionPermissions } from '@/composables/useBulkActionPermissions'
 import { useI18n } from 'vue-i18n'
+import { ownerPreview } from '@main/utils/omnichannel.js'
 
 let timer = null
 const now = ref(new Date())
@@ -246,6 +257,8 @@ const trimmedLastMessage = computed(() => {
   const message = props.conversation.last_message || ''
   return message.length > 120 ? message.slice(0, 120) + '...' : message
 })
+
+const ownerLastMessage = computed(() => ownerPreview(trimmedLastMessage.value))
 
 const relativeLastMessageTime = computed(() => {
   return props.conversation.last_message_at
