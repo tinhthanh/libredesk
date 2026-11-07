@@ -42,11 +42,13 @@
           </div>
         </div>
 
-        <form @submit.prevent="loginAction" class="space-y-3">
+        <!-- name/method let browser password managers recognise this as a login form. -->
+        <form method="post" @submit.prevent="loginAction" class="space-y-3">
           <div class="space-y-2">
             <Label for="email" class="text-muted-foreground">{{ t('globals.terms.email') }}</Label>
             <Input
               id="email"
+              name="email"
               type="text"
               autofocus
               autocomplete="username"
@@ -62,6 +64,7 @@
             <div class="relative">
               <Input
                 id="password"
+                name="password"
                 :type="showPassword ? 'text' : 'password'"
                 autocomplete="current-password"
                 v-model="loginForm.password"
@@ -219,6 +222,21 @@ const validateForm = () => {
   return true
 }
 
+// Login goes over XHR and the SPA never reloads, so some browsers miss the
+// submission. Hand the credentials to the browser's own password manager after a
+// successful login (Credential Management API, Chromium-based browsers); the
+// browser asks the user and stores them, the app never keeps the password.
+const offerToSaveCredentials = (email, password) => {
+  if (isDemoBuild || typeof window.PasswordCredential !== 'function' || !navigator.credentials)
+    return
+  try {
+    const credential = new window.PasswordCredential({ id: email, password, name: email })
+    navigator.credentials.store(credential).catch(() => {})
+  } catch {
+    // Not supported in this context (e.g. insecure origin): the form attributes still apply.
+  }
+}
+
 const loginAction = () => {
   submitted.value = true
   if (!validateForm()) return
@@ -235,6 +253,7 @@ const loginAction = () => {
       if (resp?.data?.data) {
         userStore.setCurrentUser(resp.data.data)
       }
+      offerToSaveCredentials(loginForm.value.email, loginForm.value.password)
       // Also fetch general setting as user's logged in.
       appSettingsStore.fetchSettings('general')
 
