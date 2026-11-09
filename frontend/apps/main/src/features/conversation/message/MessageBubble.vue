@@ -240,7 +240,7 @@
           <!-- omnichannel: customer reactions on Zalo/Facebook, shown like the apps do -->
           <div
             v-if="reactions.length"
-            class="absolute -bottom-3 right-3 flex items-center gap-0.5 rounded-full border border-border bg-background px-1.5 py-0.5 text-xs shadow-sm"
+            class="absolute -bottom-3 right-3 z-20 flex items-center gap-0.5 rounded-full border border-border bg-background px-1.5 py-0.5 text-xs shadow-sm"
             :title="reactionTitle"
           >
             <span v-for="r in reactions.slice(0, 3)" :key="r.emoji">{{ r.emoji }}</span>
