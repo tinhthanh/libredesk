@@ -833,6 +833,8 @@
   "conversation.quoteReply": "Reply with quote",
   "conversation.repliedTo": "You replied to {name}",
   "conversation.replied": "You replied",
+  "conversation.theyRepliedTo": "{sender} replied to {name}",
+  "conversation.theyReplied": "{sender} replied",
   "conversation.replyingTo": "Replying to {name}",
   "conversation.removeQuote": "Remove quote",
   "conversation.recallMessage": "Recall message",

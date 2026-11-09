@@ -109,7 +109,8 @@ function escapeHTML(s) {
 
 // quoteText: one line of plain text for the quote preview.
 export function quoteText(content) {
-  const text = stripGroupSender(content || '')
+  const own = stripGroupSender(content || '')
+  const text = (customerQuote(own)?.body ?? own)
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
@@ -137,17 +138,37 @@ export function quoteHTML(target) {
 // "replied to <author>" above a muted bubble, the reply in its own bubble.
 const REPLY_QUOTE = /^\s*<blockquote data-reply-uuid="[^"]*">([\s\S]*?)<\/blockquote>/
 
+// splitQuoted reads "Author: text" (the bots and quoteHTML both write it).
+function splitQuoted(line, body) {
+  const sep = line.indexOf(': ')
+  const named = sep > 0 && sep <= QUOTE_AUTHOR_MAX
+  return { author: named ? line.slice(0, sep) : '', text: named ? line.slice(sep + 2) : line, body }
+}
+
+const QUOTE_AUTHOR_MAX = 60
+
 // replyQuote splits an agent reply into {author, text, body}; null without a quote.
 export function replyQuote(content) {
   const match = REPLY_QUOTE.exec(content || '')
   if (!match) return null
   const line = unescapeHTML(match[1].replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim()
-  const sep = line.indexOf(': ')
-  return {
-    author: sep > 0 ? line.slice(0, sep) : '',
-    text: sep > 0 ? line.slice(sep + 2) : line,
-    body: content.slice(match[0].length)
-  }
+  return splitQuoted(line, content.slice(match[0].length))
+}
+
+// A customer reply quoting a message: the gateway writes "↪ «Author: text»"
+// on the first line (group sender prefix already stripped).
+const CUSTOMER_QUOTE = /^↪ «([\s\S]*?)»\n/
+
+// customerQuote splits a customer reply into {author, text, body}; null without a quote.
+export function customerQuote(content) {
+  const match = CUSTOMER_QUOTE.exec(content || '')
+  if (!match) return null
+  return splitQuoted(match[1].trim(), content.slice(match[0].length))
+}
+
+// quotePreview drops the quoted message from a list preview: "[Nhất]: ↩ reply".
+export function quotePreview(text) {
+  return (text || '').replace(/^(\[[^\]]+\]: )?↪ «[\s\S]*?»\s*/, '$1↩ ')
 }
 
 // Reactions an agent can send: the set both Zalo and Messenger understand.

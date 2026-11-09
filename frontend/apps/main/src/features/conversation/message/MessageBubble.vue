@@ -107,10 +107,14 @@
           :class="{ 'mb-3': reactions.length, 'md:min-w-[30%]': !stickerOnly }"
         >
           <!-- omnichannel: quoted reply, drawn like Messenger -->
-          <div v-if="reply" class="self-end flex flex-col items-end max-w-[85%] -mb-3">
-            <div class="flex items-center gap-1 text-xs text-muted-foreground mb-1 pr-1">
+          <div
+            v-if="reply"
+            class="flex flex-col max-w-[85%] -mb-3"
+            :class="isOutgoing ? 'self-end items-end' : 'self-start items-start'"
+          >
+            <div class="flex items-center gap-1 text-xs text-muted-foreground mb-1 px-1">
               <Reply class="w-3 h-3" />
-              {{ reply.author ? t('conversation.repliedTo', { name: reply.author }) : t('conversation.replied') }}
+              {{ replyLabel }}
             </div>
             <div
               class="rounded-2xl bg-muted text-muted-foreground text-sm px-3 pt-2 pb-5 line-clamp-3 whitespace-pre-wrap break-words"
@@ -444,6 +448,7 @@ import { errorMessage } from '@main/features/admin/channel-accounts/channelAccou
 import { containsQuoteMarkers } from '@shared-ui/utils/quotedContent.js'
 import {
   canRecallInbox,
+  customerQuote,
   groupSender,
   isOmnichannelInbox,
   isStickerOnly,
@@ -593,14 +598,24 @@ const sanitizedContent = computed(() => {
   if (props.message.meta?.is_csat) {
     return t('globals.messages.pleaseRateConversation')
   }
+  if (reply.value) return reply.value.body
   if (member.value) return stripGroupSender(props.message.content)
   if (owner.value) return owner.value.body
-  if (reply.value) return reply.value.body
   return props.message.content || ''
 })
 
-// omnichannel: an agent reply that quotes a customer message
-const reply = computed(() => (isOutgoing.value ? replyQuote(props.message.content) : null))
+// omnichannel: a reply that quotes another message (agent or customer)
+const reply = computed(() => {
+  if (isOutgoing.value) return replyQuote(props.message.content)
+  const content = props.message.content || ''
+  return customerQuote(member.value ? stripGroupSender(content) : content)
+})
+const replyLabel = computed(() => {
+  const name = reply.value?.author
+  if (isOutgoing.value) return name ? t('conversation.repliedTo', { name }) : t('conversation.replied')
+  const sender = getFullName.value.replace(/ ·.*$/, '')
+  return name ? t('conversation.theyRepliedTo', { sender, name }) : t('conversation.theyReplied', { sender })
+})
 
 // omnichannel: owner reply note, its long heading turned into a chip
 const owner = computed(() =>

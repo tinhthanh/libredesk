@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   groupSender,
   canRecallInbox,
+  customerQuote,
   isOmnichannelInbox,
   isSticker,
   isStickerOnly,
@@ -11,6 +12,7 @@ import {
   ownerReply,
   REACTION_CHOICES,
   quoteHTML,
+  quotePreview,
   quoteTarget,
   quoteText,
   replyQuote,
@@ -68,6 +70,19 @@ describe('omnichannel quote replies', () => {
     expect(replyQuote('<p>không trích</p><blockquote data-reply-uuid="m1"><p>A: b</p></blockquote>')).toBeNull()
     expect(replyQuote('<blockquote><p>A: thư email</p></blockquote>')).toBeNull()
     expect(replyQuote(null)).toBeNull()
+  })
+
+  it('splits a customer reply from its quote', () => {
+    expect(customerQuote('↪ «Diep Ngoc Truc: Chị gửi file»\n@Diep chị gửi e ảnh\nnha')).toEqual({
+      author: 'Diep Ngoc Truc',
+      text: 'Chị gửi file',
+      body: '@Diep chị gửi e ảnh\nnha'
+    })
+    expect(customerQuote('↪ «(tin được trả lời không còn trong bộ nhớ của bot)»\nok').author).toBe('')
+    expect(customerQuote('không trích ↪ «A: b»\nx')).toBeNull()
+    expect(quoteText('[Nhất]: ↪ «Trúc: form giấy»\nchị gửi e ảnh')).toBe('chị gửi e ảnh')
+    expect(quotePreview('[Nhất]: ↪ «Trúc: form giấy» chị gửi e ảnh')).toBe('[Nhất]: ↩ chị gửi e ảnh')
+    expect(quotePreview('xin chào')).toBe('xin chào')
   })
 
   it('toggles the agent reaction', () => {

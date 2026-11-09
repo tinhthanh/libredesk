@@ -833,6 +833,8 @@
   "conversation.quoteReply": "Trả lời trích dẫn",
   "conversation.repliedTo": "Bạn đã trả lời {name}",
   "conversation.replied": "Bạn đã trả lời",
+  "conversation.theyRepliedTo": "{sender} đã trả lời {name}",
+  "conversation.theyReplied": "{sender} đã trả lời",
   "conversation.replyingTo": "Đang trả lời {name}",
   "conversation.removeQuote": "Bỏ trích dẫn",
   "conversation.recallMessage": "Thu hồi tin",

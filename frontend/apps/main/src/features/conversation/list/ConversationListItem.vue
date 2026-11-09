@@ -201,7 +201,7 @@ import { useConversationStore } from '@main/stores/conversation'
 import { useAppSettingsStore } from '@main/stores/appSettings'
 import { useBulkActionPermissions } from '@/composables/useBulkActionPermissions'
 import { useI18n } from 'vue-i18n'
-import { ownerPreview } from '@main/utils/omnichannel.js'
+import { ownerPreview, quotePreview } from '@main/utils/omnichannel.js'
 
 let timer = null
 const now = ref(new Date())
@@ -254,7 +254,7 @@ onUnmounted(() => {
 })
 
 const trimmedLastMessage = computed(() => {
-  const message = props.conversation.last_message || ''
+  const message = quotePreview(props.conversation.last_message)
   return message.length > 120 ? message.slice(0, 120) + '...' : message
 })
 
