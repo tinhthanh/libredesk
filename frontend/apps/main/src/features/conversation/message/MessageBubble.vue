@@ -116,15 +116,13 @@
               <Reply class="w-3 h-3" />
               {{ replyLabel }}
             </div>
-            <div
-              class="rounded-2xl bg-muted text-muted-foreground text-sm px-3 pt-2 pb-5 line-clamp-3 whitespace-pre-wrap break-words"
-            >
-              {{ reply.text }}
+            <div class="rounded-2xl bg-muted text-muted-foreground text-sm px-3 pt-2 pb-5">
+              <p class="line-clamp-3 whitespace-pre-wrap break-words">{{ reply.text }}</p>
             </div>
           </div>
           <div
             class="flex flex-col justify-end message-bubble !w-full"
-            :class="[bubbleClasses, { 'relative z-10': reply }]"
+            :class="[bubbleClasses, { 'relative z-10': reply, 'bg-background': reply && !isOutgoing }]"
           >
             <div v-if="isDeleted" class="text-sm italic text-muted-foreground">
               {{ message.content }}
