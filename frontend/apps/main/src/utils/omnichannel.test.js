@@ -13,6 +13,7 @@ import {
   quoteHTML,
   quoteTarget,
   quoteText,
+  replyQuote,
   senderAvatarURL,
   stripGroupSender
 } from './omnichannel.js'
@@ -54,6 +55,19 @@ describe('omnichannel quote replies', () => {
       '<blockquote data-reply-uuid="m&quot;1"><p>A&lt;b&gt;: x &amp; y</p></blockquote>'
     )
     expect(quoteHTML(null)).toBe('')
+  })
+
+  it('splits an agent reply from its quote', () => {
+    const html = quoteHTML({ uuid: 'm1', author: 'Thùy Ngân', text: 'Có rảnh k & khi nào' }) + '<p>đúng rồi</p>'
+    expect(replyQuote(html)).toEqual({ author: 'Thùy Ngân', text: 'Có rảnh k & khi nào', body: '<p>đúng rồi</p>' })
+    expect(replyQuote('<blockquote data-reply-uuid="m1"><p>chỉ có chữ</p></blockquote>x')).toEqual({
+      author: '',
+      text: 'chỉ có chữ',
+      body: 'x'
+    })
+    expect(replyQuote('<p>không trích</p><blockquote data-reply-uuid="m1"><p>A: b</p></blockquote>')).toBeNull()
+    expect(replyQuote('<blockquote><p>A: thư email</p></blockquote>')).toBeNull()
+    expect(replyQuote(null)).toBeNull()
   })
 
   it('toggles the agent reaction', () => {

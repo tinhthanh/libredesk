@@ -831,6 +831,8 @@
   "conversation.showQuotedText": "Hiện đoạn trích dẫn",
   "conversation.react": "Thả cảm xúc",
   "conversation.quoteReply": "Trả lời trích dẫn",
+  "conversation.repliedTo": "Bạn đã trả lời {name}",
+  "conversation.replied": "Bạn đã trả lời",
   "conversation.replyingTo": "Đang trả lời {name}",
   "conversation.removeQuote": "Bỏ trích dẫn",
   "conversation.recallMessage": "Thu hồi tin",

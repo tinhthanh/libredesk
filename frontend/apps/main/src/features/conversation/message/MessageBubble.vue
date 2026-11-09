@@ -106,9 +106,21 @@
           class="relative flex flex-col max-w-full"
           :class="{ 'mb-3': reactions.length, 'md:min-w-[30%]': !stickerOnly }"
         >
+          <!-- omnichannel: quoted reply, drawn like Messenger -->
+          <div v-if="reply" class="self-end flex flex-col items-end max-w-[85%] -mb-3">
+            <div class="flex items-center gap-1 text-xs text-muted-foreground mb-1 pr-1">
+              <Reply class="w-3 h-3" />
+              {{ reply.author ? t('conversation.repliedTo', { name: reply.author }) : t('conversation.replied') }}
+            </div>
+            <div
+              class="rounded-2xl bg-muted text-muted-foreground text-sm px-3 pt-2 pb-5 line-clamp-3 whitespace-pre-wrap break-words"
+            >
+              {{ reply.text }}
+            </div>
+          </div>
           <div
             class="flex flex-col justify-end message-bubble !w-full"
-            :class="bubbleClasses"
+            :class="[bubbleClasses, { 'relative z-10': reply }]"
           >
             <div v-if="isDeleted" class="text-sm italic text-muted-foreground">
               {{ message.content }}
@@ -439,6 +451,7 @@ import {
   ownerReply,
   quoteTarget,
   REACTION_CHOICES,
+  replyQuote,
   replyTarget,
   stripGroupSender,
   senderAvatarURL
@@ -582,8 +595,12 @@ const sanitizedContent = computed(() => {
   }
   if (member.value) return stripGroupSender(props.message.content)
   if (owner.value) return owner.value.body
+  if (reply.value) return reply.value.body
   return props.message.content || ''
 })
+
+// omnichannel: an agent reply that quotes a customer message
+const reply = computed(() => (isOutgoing.value ? replyQuote(props.message.content) : null))
 
 // omnichannel: owner reply note, its long heading turned into a chip
 const owner = computed(() =>

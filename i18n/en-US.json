@@ -831,6 +831,8 @@
   "conversation.showQuotedText": "Show quoted text",
   "conversation.react": "React",
   "conversation.quoteReply": "Reply with quote",
+  "conversation.repliedTo": "You replied to {name}",
+  "conversation.replied": "You replied",
   "conversation.replyingTo": "Replying to {name}",
   "conversation.removeQuote": "Remove quote",
   "conversation.recallMessage": "Recall message",

@@ -133,6 +133,23 @@ export function quoteHTML(target) {
   return `<blockquote data-reply-uuid="${escapeHTML(target.uuid)}"><p>${escapeHTML(target.author)}: ${escapeHTML(target.text)}</p></blockquote>`
 }
 
+// The quote an agent reply starts with (quoteHTML), shown like Messenger:
+// "replied to <author>" above a muted bubble, the reply in its own bubble.
+const REPLY_QUOTE = /^\s*<blockquote data-reply-uuid="[^"]*">([\s\S]*?)<\/blockquote>/
+
+// replyQuote splits an agent reply into {author, text, body}; null without a quote.
+export function replyQuote(content) {
+  const match = REPLY_QUOTE.exec(content || '')
+  if (!match) return null
+  const line = unescapeHTML(match[1].replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim()
+  const sep = line.indexOf(': ')
+  return {
+    author: sep > 0 ? line.slice(0, sep) : '',
+    text: sep > 0 ? line.slice(sep + 2) : line,
+    body: content.slice(match[0].length)
+  }
+}
+
 // Reactions an agent can send: the set both Zalo and Messenger understand.
 export const REACTION_CHOICES = ['❤️', '👍', '😆', '😮', '😢', '😡']
 
