@@ -39,29 +39,47 @@
         <X class="w-4 h-4" />
       </Button>
     </template>
-    <Tooltip v-else>
-      <TooltipTrigger as-child>
-        <Button
-          variant="ghost"
-          class="w-11 h-11 md:w-8 md:h-8 p-0"
-          :aria-label="t('conversation.call.start')"
-          :disabled="active"
-          @click="start"
-        >
-          <Phone class="w-4 h-4" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        {{ active ? t('conversation.call.otherActive', { name: call.contactName }) : t('conversation.call.start') }}
-      </TooltipContent>
-    </Tooltip>
+    <template v-else>
+      <Tooltip v-if="videoAllowed">
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            class="w-11 h-11 md:w-8 md:h-8 p-0"
+            :aria-label="t('conversation.call.startVideo')"
+            :disabled="active"
+            @click="start(true)"
+          >
+            <Video class="w-4 h-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {{ active ? t('conversation.call.otherActive', { name: call.contactName }) : t('conversation.call.startVideo') }}
+        </TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger as-child>
+          <Button
+            variant="ghost"
+            class="w-11 h-11 md:w-8 md:h-8 p-0"
+            :aria-label="t('conversation.call.start')"
+            :disabled="active"
+            @click="start(false)"
+          >
+            <Phone class="w-4 h-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {{ active ? t('conversation.call.otherActive', { name: call.contactName }) : t('conversation.call.start') }}
+        </TooltipContent>
+      </Tooltip>
+    </template>
   </div>
 </template>
 
 <script setup>
 import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Mic, MicOff, Phone, PhoneOff, X } from 'lucide-vue-next'
+import { Mic, MicOff, Phone, PhoneOff, Video, X } from 'lucide-vue-next'
 import { Button } from '@shared-ui/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shared-ui/components/ui/tooltip'
 import { useConversationStore } from '@main/stores/conversation'
@@ -102,6 +120,7 @@ watch(
   },
   { immediate: true }
 )
+const videoAllowed = computed(() => callFeature.videoAccounts.includes(zaloAccountOf(conversation.value)))
 const isThisCall = computed(() => call.conversationUUID && call.conversationUUID === conversation.value?.uuid)
 const active = computed(() => callActive())
 const statusText = computed(() => {
@@ -111,14 +130,15 @@ const statusText = computed(() => {
     : label
 })
 
-const start = async () => {
+const start = async (video) => {
   const conv = conversation.value
   if (!conv) return
-  const err = await startCall(conv.uuid, conversationStore.currentContactName)
+  const err = await startCall(conv.uuid, conversationStore.currentContactName, { video })
   if (!err) return
+  const known = { mic: 'conversation.call.micDenied', camera: 'conversation.call.cameraDenied', error: 'conversation.call.failed' }
   emitter.emit(EMITTER_EVENTS.SHOW_TOAST, {
     variant: 'destructive',
-    description: err === 'mic' ? t('conversation.call.micDenied') : err === 'error' ? t('conversation.call.failed') : err
+    description: known[err] ? t(known[err]) : err
   })
 }
 </script>

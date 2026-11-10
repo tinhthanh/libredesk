@@ -1697,5 +1697,13 @@
   "conversation.call.end.error": "Không gọi được",
   "admin.channelAccounts.calls": "Gọi điện",
   "admin.channelAccounts.callsOn": "Đã bật gọi điện cho {name}",
-  "admin.channelAccounts.callsOff": "Đã tắt gọi điện cho {name}"
+  "admin.channelAccounts.callsOff": "Đã tắt gọi điện cho {name}",
+  "conversation.call.startVideo": "Gọi video qua Zalo",
+  "conversation.call.cameraDenied": "Trình duyệt chưa cho dùng camera hoặc micro. Cho phép rồi gọi lại.",
+  "conversation.call.cameraOff": "Tắt camera",
+  "conversation.call.cameraOn": "Bật camera",
+  "conversation.call.waitingVideo": "Đang chờ hình của khách…",
+  "admin.channelAccounts.videoCalls": "Gọi video",
+  "admin.channelAccounts.videoCallsOn": "Đã bật gọi video cho {name}",
+  "admin.channelAccounts.videoCallsOff": "Đã tắt gọi video cho {name}"
 }

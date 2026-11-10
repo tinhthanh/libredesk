@@ -2,7 +2,7 @@
 // Trình duyệt nói WebRTC với zalo-call qua TURN; gateway chỉ chuyển offer/answer và trạng thái.
 // Trạng thái là singleton ở cấp module: chuyển sang hội thoại khác thì cuộc gọi vẫn tiếp tục
 // và thanh cuộc gọi hiện lại khi mở lại hội thoại đó.
-import { reactive } from 'vue'
+import { reactive, shallowRef } from 'vue'
 import api from '@main/api'
 
 export const call = reactive({
@@ -14,6 +14,9 @@ export const call = reactive({
   reason: '',
   error: '',
   muted: false,
+  // Gọi video: camera của mình đang bật hay tắt.
+  video: false,
+  cameraOff: false,
   startedAt: 0,
   answeredAt: 0,
   durationSecs: 0
@@ -21,7 +24,7 @@ export const call = reactive({
 
 // Tài khoản Zalo được gọi điện (admin bật trên trang Tài khoản kênh). Gateway trả 404 khi chưa
 // có zalo-call. Hỏi lại sau mỗi phút để bật/tắt có tác dụng mà không cần tải lại trang.
-export const callFeature = reactive({ checked: false, accounts: [] })
+export const callFeature = reactive({ checked: false, accounts: [], videoAccounts: [] })
 const FEATURE_TTL_MS = 60 * 1000
 let featureProbe = null
 let featureAt = 0
@@ -33,9 +36,11 @@ export function ensureCallFeature() {
       .getChannelCallAccounts()
       .then(({ data }) => {
         callFeature.accounts = Array.isArray(data?.zalo_accounts) ? data.zalo_accounts : []
+        callFeature.videoAccounts = Array.isArray(data?.video_accounts) ? data.video_accounts : []
       })
       .catch(() => {
         callFeature.accounts = []
+        callFeature.videoAccounts = []
       })
       .finally(() => {
         callFeature.checked = true
@@ -49,6 +54,13 @@ export function zaloAccountOf(conversation) {
   const name = conversation?.inbox_name || ''
   return name.startsWith('Zalo - ') ? name.slice('Zalo - '.length) : ''
 }
+
+// Luồng video cho cửa sổ gọi video (camera của mình và hình của khách).
+export const callVideo = { local: shallowRef(null), remote: shallowRef(null) }
+
+// Camera vừa phải: điện thoại Zalo nhận khoảng 150-800 kbit/s.
+const VIDEO_CONSTRAINTS = { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15, max: 20 } }
+const VIDEO_MAX_BITRATE = 600000
 
 let pc = null
 let mic = null
@@ -94,6 +106,8 @@ function cleanup() {
   poll = tick = null
   mic?.getTracks().forEach((t) => t.stop())
   mic = null
+  callVideo.local.value = null
+  callVideo.remote.value = null
   try {
     pc?.close()
   } catch {
@@ -129,27 +143,38 @@ async function refresh() {
   }
 }
 
-// Bắt đầu gọi khách của hội thoại. Trả lỗi (chuỗi) để hiện toast, hoặc ''.
-export async function startCall(conversationUUID, contactName) {
+// Bắt đầu gọi khách của hội thoại (`video` để gọi video). Trả lỗi (chuỗi) để hiện toast, hoặc ''.
+export async function startCall(conversationUUID, contactName, { video = false } = {}) {
   if (callActive()) return 'busy_local'
   Object.assign(call, {
     id: '', conversationUUID, contactName, state: 'starting', reason: '', error: '',
-    muted: false, startedAt: Date.now(), answeredAt: 0, durationSecs: 0
+    muted: false, video, cameraOff: false, startedAt: Date.now(), answeredAt: 0, durationSecs: 0
   })
   try {
-    mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+    mic = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true },
+      video: video ? VIDEO_CONSTRAINTS : false
+    })
   } catch {
-    finish('error', 'mic')
-    return 'mic'
+    finish('error', video ? 'camera' : 'mic')
+    return video ? 'camera' : 'mic'
   }
+  if (video) callVideo.local.value = new MediaStream(mic.getVideoTracks())
   try {
     const { data: ice } = await api.getChannelCallIce()
     pc = new RTCPeerConnection({ iceServers: ice.ice_servers || [], iceTransportPolicy: 'relay' })
-    mic.getTracks().forEach((t) => pc.addTrack(t, mic))
+    mic.getTracks().forEach((t) => {
+      const sender = pc.addTrack(t, mic)
+      if (t.kind === 'video') limitBitrate(sender)
+    })
     audio = new Audio()
     audio.autoplay = true
     pc.ontrack = (ev) => {
-      audio.srcObject = ev.streams[0] || new MediaStream([ev.track])
+      if (ev.track.kind === 'video') {
+        callVideo.remote.value = new MediaStream([ev.track])
+        return
+      }
+      audio.srcObject = new MediaStream([ev.track])
       audio.play().catch(() => {})
     }
     pc.onconnectionstatechange = () => {
@@ -157,7 +182,7 @@ export async function startCall(conversationUUID, contactName) {
     }
     await pc.setLocalDescription(await pc.createOffer())
     await waitIceGathering(pc)
-    const { data } = await api.startChannelCall(conversationUUID, pc.localDescription.sdp)
+    const { data } = await api.startChannelCall(conversationUUID, pc.localDescription.sdp, video)
     call.id = data.id
     await pc.setRemoteDescription({ type: 'answer', sdp: data.answer_sdp })
     call.state = 'dialing'
@@ -191,6 +216,26 @@ export function toggleMute() {
   call.muted = !call.muted
   mic?.getAudioTracks().forEach((t) => {
     t.enabled = !call.muted
+  })
+}
+
+// Giới hạn bitrate camera để điện thoại khách xem mượt qua relay Zalo.
+function limitBitrate(sender) {
+  try {
+    const params = sender.getParameters()
+    params.encodings = params.encodings?.length ? params.encodings : [{}]
+    params.encodings[0].maxBitrate = VIDEO_MAX_BITRATE
+    sender.setParameters(params).catch(() => {})
+  } catch {
+    // trình duyệt cũ: để mặc định
+  }
+}
+
+// Tắt/bật camera của mình (khách thấy hình đen khi tắt).
+export function toggleCamera() {
+  call.cameraOff = !call.cameraOff
+  mic?.getVideoTracks().forEach((t) => {
+    t.enabled = !call.cameraOff
   })
 }
 

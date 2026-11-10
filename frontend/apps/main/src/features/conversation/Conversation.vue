@@ -80,8 +80,9 @@
     </div>
 
     <!-- Messages & reply box -->
-    <div class="flex flex-col flex-grow overflow-hidden">
+    <div class="relative flex flex-col flex-grow overflow-hidden">
       <MessageList class="flex-1 overflow-y-auto" />
+      <ChannelCallVideo />
       <ReplyBox />
     </div>
   </div>
@@ -106,6 +107,7 @@ import { Button } from '@shared-ui/components/ui/button'
 import MessageList from '@/features/conversation/message/MessageList.vue'
 import ReplyBox from './ReplyBox.vue'
 import ChannelCallButton from './ChannelCallButton.vue'
+import ChannelCallVideo from './ChannelCallVideo.vue'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { CONVERSATION_DEFAULT_STATUSES } from '@main/constants/conversation'
 import { useEmitter } from '@main/composables/useEmitter'

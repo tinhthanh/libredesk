@@ -1697,5 +1697,13 @@
   "conversation.call.end.error": "Call failed",
   "admin.channelAccounts.calls": "Calls",
   "admin.channelAccounts.callsOn": "Calls turned on for {name}",
-  "admin.channelAccounts.callsOff": "Calls turned off for {name}"
+  "admin.channelAccounts.callsOff": "Calls turned off for {name}",
+  "conversation.call.startVideo": "Video call on Zalo",
+  "conversation.call.cameraDenied": "The browser has not allowed the camera or microphone. Allow them and call again.",
+  "conversation.call.cameraOff": "Turn camera off",
+  "conversation.call.cameraOn": "Turn camera on",
+  "conversation.call.waitingVideo": "Waiting for the customer’s video…",
+  "admin.channelAccounts.videoCalls": "Video calls",
+  "admin.channelAccounts.videoCallsOn": "Video calls turned on for {name}",
+  "admin.channelAccounts.videoCallsOff": "Video calls turned off for {name}"
 }

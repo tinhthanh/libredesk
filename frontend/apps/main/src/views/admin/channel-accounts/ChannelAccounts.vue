@@ -82,6 +82,17 @@
                       />
                       {{ t('admin.channelAccounts.calls') }}
                     </label>
+                    <label
+                      v-if="channel.channel === 'zalo' && callSettings.available"
+                      class="flex items-center gap-2 text-xs text-muted-foreground"
+                    >
+                      <Switch
+                        :checked="callSettings.videoAccounts.includes(account.name)"
+                        :disabled="busy === 'call/' + account.name"
+                        @update:checked="(on) => setCalls(account.name, on, true)"
+                      />
+                      {{ t('admin.channelAccounts.videoCalls') }}
+                    </label>
                     <Badge :variant="accountStatus(account).variant">
                       {{ t(accountStatus(account).key) }}
                     </Badge>
@@ -392,23 +403,28 @@ function toast (description, variant) {
 }
 
 // Gọi khách Zalo: tài khoản nào được bật (gateway /gw/settings/calls).
-const callSettings = ref({ available: false, accounts: [] })
+const callSettings = ref({ available: false, accounts: [], videoAccounts: [] })
 
 async function loadCallSettings () {
   try {
     const { data } = await api.getCallSettings()
-    callSettings.value = { available: !!data.available, accounts: data.zalo_accounts || [] }
+    callSettings.value = callSettingsFrom(data)
   } catch {
-    callSettings.value = { available: false, accounts: [] }
+    callSettings.value = { available: false, accounts: [], videoAccounts: [] }
   }
 }
 
-async function setCalls (name, on) {
+function callSettingsFrom (data) {
+  return { available: !!data.available, accounts: data.zalo_accounts || [], videoAccounts: data.video_accounts || [] }
+}
+
+async function setCalls (name, on, video = false) {
   busy.value = 'call/' + name
   try {
-    const { data } = await api.setCallSetting(name, on)
-    callSettings.value = { available: !!data.available, accounts: data.zalo_accounts || [] }
-    toast(t(on ? 'admin.channelAccounts.callsOn' : 'admin.channelAccounts.callsOff', { name }))
+    const { data } = await api.setCallSetting(name, on, video)
+    callSettings.value = callSettingsFrom(data)
+    const key = video ? (on ? 'videoCallsOn' : 'videoCallsOff') : (on ? 'callsOn' : 'callsOff')
+    toast(t('admin.channelAccounts.' + key, { name }))
   } catch (error) {
     toast(errorMessage(error), 'destructive')
   } finally {
