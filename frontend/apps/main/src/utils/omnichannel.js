@@ -28,7 +28,7 @@ export function senderAvatarURL(conversationUUID, name) {
 // isOmnichannelInbox: inboxes the gateway creates are named "Zalo - acc" /
 // "Facebook - acc" / "Fanpage - page" / "Zalo OA - oa" / "Fanpage Web - page".
 export function isOmnichannelInbox(conversation) {
-  return /^(Zalo|Facebook|Fanpage|Zalo OA|Fanpage Web) - /.test(conversation?.inbox_name || '')
+  return /^(Zalo|Facebook|Fanpage|Zalo OA|Fanpage Web|SMS) - /.test(conversation?.inbox_name || '')
 }
 
 // omniChannel names the channel of a gateway inbox ('' for any other inbox).
@@ -38,7 +38,8 @@ const OMNI_CHANNEL_PREFIXES = [
   ['Zalo - ', 'zalo'],
   ['Fanpage Web - ', 'fanpage-web'],
   ['Fanpage - ', 'fanpage'],
-  ['Facebook - ', 'facebook']
+  ['Facebook - ', 'facebook'],
+  ['SMS - ', 'sms']
 ]
 
 export function omniChannel(conversation) {

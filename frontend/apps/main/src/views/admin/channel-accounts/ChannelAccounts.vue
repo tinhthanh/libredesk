@@ -168,7 +168,9 @@
                   t(
                     login?.channel.qr_login
                       ? 'admin.channelAccounts.scanQr'
-                      : login?.channel.token_login
+                      : login?.channel.agent_link
+                        ? 'admin.channelAccounts.smsHint'
+                        : login?.channel.token_login
                         ? 'admin.channelAccounts.fanpageHint'
                         : login?.channel.oauth_login
                           ? 'admin.channelAccounts.zaloOAHint'
@@ -204,6 +206,33 @@
                 />
                 <Spinner v-else-if="!finished" />
                 <p class="text-sm text-center">{{ login.status?.message || t('admin.channelAccounts.scanQr') }}</p>
+              </div>
+
+              <!-- SMS: link code for the branch's Vetgo Phone Desktop (agent over Tailscale) -->
+              <div v-else-if="login.channel.agent_link" class="space-y-3">
+                <template v-if="login.link">
+                  <p class="text-sm">{{ t('admin.channelAccounts.smsLinkReady') }}</p>
+                  <div v-if="login.link.url" class="space-y-1">
+                    <label class="text-xs text-muted-foreground">{{ t('admin.channelAccounts.smsLinkUrl') }}</label>
+                    <Input :model-value="login.link.url" readonly class="font-mono text-xs" @focus="$event.target.select()" />
+                  </div>
+                  <div class="space-y-1">
+                    <label class="text-xs text-muted-foreground">{{ t('admin.channelAccounts.smsLinkCode') }}</label>
+                    <div class="flex gap-2">
+                      <Input :model-value="login.link.code" readonly class="font-mono text-xs" @focus="$event.target.select()" />
+                      <Button size="sm" variant="outline" @click="copyText(login.link.code)">{{ t('admin.channelAccounts.copy') }}</Button>
+                    </div>
+                  </div>
+                  <p class="text-xs text-destructive">{{ t('admin.channelAccounts.smsLinkOnce') }}</p>
+                </template>
+                <p v-else-if="login.status?.message" class="text-sm" :class="{ 'text-destructive': login.status.status === 'error' }">
+                  {{ login.status.message }}
+                </p>
+                <div v-if="!login.link" class="flex justify-end">
+                  <Button :disabled="login.started" @click="createLinkCode">
+                    {{ t('admin.channelAccounts.smsCreateLink') }}
+                  </Button>
+                </div>
               </div>
 
               <!-- Fanpage: page access token (Messenger Platform) -->
@@ -479,7 +508,28 @@ function lockName () {
 }
 
 function needsAction (channel) {
-  return channel.token_login || channel.oauth_login
+  return channel.token_login || channel.oauth_login || channel.agent_link
+}
+
+// SMS: the gateway asks sms-bridge for a new code (the old one stops working).
+async function createLinkCode () {
+  const current = login.value
+  current.started = true
+  try {
+    const { data } = await api.linkChannelAgent(current.channel.channel, current.name)
+    current.link = { code: data.code, url: data.url || '' }
+    loadAccounts()
+  } catch (error) {
+    current.started = false
+    current.status = { status: 'error', message: errorMessage(error) }
+  }
+}
+
+function copyText (text) {
+  navigator.clipboard?.writeText(text).then(
+    () => toast(t('admin.channelAccounts.copied')),
+    () => {}
+  )
 }
 
 // Zalo OA: open Zalo's grant page in a new window (opened inside the click so

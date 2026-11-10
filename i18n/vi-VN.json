@@ -1707,5 +1707,13 @@
   "admin.channelAccounts.videoCallsOn": "Đã bật gọi video cho {name}",
   "admin.channelAccounts.videoCallsOff": "Đã tắt gọi video cho {name}",
   "conversation.call.end.server_restart": "Bị ngắt do dịch vụ gọi điện khởi động lại",
-  "conversation.call.cameraOffCard": "Camera đang tắt"
+  "conversation.call.cameraOffCard": "Camera đang tắt",
+  "admin.channelAccounts.smsHint": "Mỗi chi nhánh một số điện thoại. Đặt tên chi nhánh, tạo mã liên kết rồi nhập địa chỉ và mã vào Vetgo Phone Desktop ở chi nhánh (máy đó phải vào được Tailscale của máy chủ).",
+  "admin.channelAccounts.smsCreateLink": "Tạo mã liên kết",
+  "admin.channelAccounts.smsLinkReady": "Nhập hai giá trị dưới đây vào Vetgo Phone Desktop ở chi nhánh (Cài đặt → Libredesk).",
+  "admin.channelAccounts.smsLinkUrl": "Địa chỉ máy chủ",
+  "admin.channelAccounts.smsLinkCode": "Mã liên kết",
+  "admin.channelAccounts.smsLinkOnce": "Mã chỉ hiện một lần. Tạo mã mới thì mã cũ hết hiệu lực ngay.",
+  "admin.channelAccounts.copy": "Chép",
+  "admin.channelAccounts.copied": "Đã chép"
 }

@@ -17,6 +17,7 @@ import zalo from '@main/assets/channels/zalo.svg'
 import zaloOA from '@main/assets/channels/zalo-oa.svg'
 import messenger from '@main/assets/channels/messenger.svg'
 import fanpage from '@main/assets/channels/fanpage.svg'
+import sms from '@main/assets/channels/sms.svg'
 
 const props = defineProps({
   conversation: Object
@@ -28,7 +29,8 @@ const ICONS = {
   'zalo-oa': { src: zaloOA, label: 'Zalo OA' },
   facebook: { src: messenger, label: 'Messenger' },
   fanpage: { src: fanpage, label: 'Fanpage' },
-  'fanpage-web': { src: fanpage, label: 'Fanpage' }
+  'fanpage-web': { src: fanpage, label: 'Fanpage' },
+  sms: { src: sms, label: 'SMS' }
 }
 
 const icon = computed(() => ICONS[omniChannel(props.conversation)])

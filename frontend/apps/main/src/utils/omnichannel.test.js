@@ -39,6 +39,8 @@ describe('omnichannel group senders', () => {
   it('recognises gateway inboxes', () => {
     expect(isOmnichannelInbox({ inbox_name: 'Zalo - acc2' })).toBe(true)
     expect(isOmnichannelInbox({ inbox_name: 'Facebook - default' })).toBe(true)
+    expect(isOmnichannelInbox({ inbox_name: 'SMS - q7' })).toBe(true)
+    expect(omniChannel({ inbox_name: 'SMS - q7' })).toBe('sms')
     expect(isOmnichannelInbox({ inbox_name: 'Support' })).toBe(false)
   })
 })
