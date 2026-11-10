@@ -1694,5 +1694,8 @@
   "conversation.call.end.browser_gone": "Audio connection lost",
   "conversation.call.end.max_duration": "Maximum length reached",
   "conversation.call.end.ended_before_answer": "The call ended before the customer answered",
-  "conversation.call.end.error": "Call failed"
+  "conversation.call.end.error": "Call failed",
+  "admin.channelAccounts.calls": "Calls",
+  "admin.channelAccounts.callsOn": "Calls turned on for {name}",
+  "admin.channelAccounts.callsOff": "Calls turned off for {name}"
 }

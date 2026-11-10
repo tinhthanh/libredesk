@@ -74,6 +74,7 @@ import {
   callActive,
   callFeature,
   ensureCallFeature,
+  zaloAccountOf,
   callStatusKey,
   dismissCall,
   formatCallDuration,
@@ -91,10 +92,12 @@ const conversation = computed(() => conversationStore.current)
 const eligible = computed(
   () => omniChannel(conversation.value) === 'zalo' && userStore.can('conversations:write') && !!window.RTCPeerConnection
 )
-const visible = computed(() => eligible.value && callFeature.enabled)
+const visible = computed(
+  () => eligible.value && callFeature.accounts.includes(zaloAccountOf(conversation.value))
+)
 watch(
-  eligible,
-  (yes) => {
+  () => [eligible.value, conversation.value?.uuid],
+  ([yes]) => {
     if (yes) ensureCallFeature()
   },
   { immediate: true }

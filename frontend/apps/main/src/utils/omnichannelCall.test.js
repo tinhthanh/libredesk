@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/api', () => ({ default: {} }))
 
-const { callStatusKey, formatCallDuration, waitIceGathering } = await import('./omnichannelCall.js')
+const { callStatusKey, formatCallDuration, waitIceGathering, zaloAccountOf } = await import('./omnichannelCall.js')
 
 describe('omnichannel call helpers', () => {
   it('formats durations as m:ss', () => {
@@ -10,6 +10,13 @@ describe('omnichannel call helpers', () => {
     expect(formatCallDuration(65)).toBe('1:05')
     expect(formatCallDuration(-3)).toBe('0:00')
     expect(formatCallDuration(undefined)).toBe('0:00')
+  })
+
+  it('reads the Zalo account from the gateway inbox name', () => {
+    expect(zaloAccountOf({ inbox_name: 'Zalo - acc2' })).toBe('acc2')
+    expect(zaloAccountOf({ inbox_name: 'Zalo OA - shop' })).toBe('')
+    expect(zaloAccountOf({ inbox_name: 'Facebook - acc2' })).toBe('')
+    expect(zaloAccountOf(null)).toBe('')
   })
 
   it('maps states and end reasons to i18n keys', () => {

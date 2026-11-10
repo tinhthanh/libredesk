@@ -70,6 +70,18 @@
                         {{ accountReason(account) }}
                       </div>
                     </div>
+                    <!-- omnichannel: agents may call this account's customers (gateway settings, off by default) -->
+                    <label
+                      v-if="channel.channel === 'zalo' && callSettings.available"
+                      class="flex items-center gap-2 text-xs text-muted-foreground"
+                    >
+                      <Switch
+                        :checked="callSettings.accounts.includes(account.name)"
+                        :disabled="busy === 'call/' + account.name"
+                        @update:checked="(on) => setCalls(account.name, on)"
+                      />
+                      {{ t('admin.channelAccounts.calls') }}
+                    </label>
                     <Badge :variant="accountStatus(account).variant">
                       {{ t(accountStatus(account).key) }}
                     </Badge>
@@ -315,6 +327,7 @@ import LoadingOverlay from '@main/components/layout/LoadingOverlay.vue'
 import FanpageWebPages from './FanpageWebPages.vue'
 import { Button } from '@shared-ui/components/ui/button/index.js'
 import { Badge } from '@shared-ui/components/ui/badge/index.js'
+import { Switch } from '@shared-ui/components/ui/switch'
 import { Input } from '@shared-ui/components/ui/input/index.js'
 import { Textarea } from '@shared-ui/components/ui/textarea/index.js'
 import { Spinner } from '@shared-ui/components/ui/spinner/index.js'
@@ -376,6 +389,31 @@ const key = (channel, name) => `${channel.channel}/${name}`
 
 function toast (description, variant) {
   emitter.emit(EMITTER_EVENTS.SHOW_TOAST, variant ? { variant, description } : { description })
+}
+
+// Gọi khách Zalo: tài khoản nào được bật (gateway /gw/settings/calls).
+const callSettings = ref({ available: false, accounts: [] })
+
+async function loadCallSettings () {
+  try {
+    const { data } = await api.getCallSettings()
+    callSettings.value = { available: !!data.available, accounts: data.zalo_accounts || [] }
+  } catch {
+    callSettings.value = { available: false, accounts: [] }
+  }
+}
+
+async function setCalls (name, on) {
+  busy.value = 'call/' + name
+  try {
+    const { data } = await api.setCallSetting(name, on)
+    callSettings.value = { available: !!data.available, accounts: data.zalo_accounts || [] }
+    toast(t(on ? 'admin.channelAccounts.callsOn' : 'admin.channelAccounts.callsOff', { name }))
+  } catch (error) {
+    toast(errorMessage(error), 'destructive')
+  } finally {
+    busy.value = ''
+  }
 }
 
 async function loadAccounts () {
@@ -633,6 +671,7 @@ async function confirmRemove () {
 
 onMounted(() => {
   loadAccounts()
+  loadCallSettings()
   listTimer = setInterval(loadAccounts, LIST_REFRESH_MS)
 })
 

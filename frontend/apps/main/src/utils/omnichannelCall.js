@@ -19,25 +19,35 @@ export const call = reactive({
   durationSecs: 0
 })
 
-// Gateway bật gọi điện chưa (GET /gw/calls/ice trả 404 khi chưa có ZALO_CALL_URL). Hỏi một lần mỗi lần tải trang.
-export const callFeature = reactive({ checked: false, enabled: false })
+// Tài khoản Zalo được gọi điện (admin bật trên trang Tài khoản kênh). Gateway trả 404 khi chưa
+// có zalo-call. Hỏi lại sau mỗi phút để bật/tắt có tác dụng mà không cần tải lại trang.
+export const callFeature = reactive({ checked: false, accounts: [] })
+const FEATURE_TTL_MS = 60 * 1000
 let featureProbe = null
+let featureAt = 0
 
 export function ensureCallFeature() {
-  if (!featureProbe) {
+  if (!featureProbe || Date.now() - featureAt > FEATURE_TTL_MS) {
+    featureAt = Date.now()
     featureProbe = api
-      .getChannelCallIce()
-      .then(() => {
-        callFeature.enabled = true
+      .getChannelCallAccounts()
+      .then(({ data }) => {
+        callFeature.accounts = Array.isArray(data?.zalo_accounts) ? data.zalo_accounts : []
       })
       .catch(() => {
-        callFeature.enabled = false
+        callFeature.accounts = []
       })
       .finally(() => {
         callFeature.checked = true
       })
   }
   return featureProbe
+}
+
+// Tên tài khoản Zalo của hội thoại: inbox gateway đặt tên "Zalo - <tài khoản>".
+export function zaloAccountOf(conversation) {
+  const name = conversation?.inbox_name || ''
+  return name.startsWith('Zalo - ') ? name.slice('Zalo - '.length) : ''
 }
 
 let pc = null

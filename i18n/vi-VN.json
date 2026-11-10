@@ -1694,5 +1694,8 @@
   "conversation.call.end.browser_gone": "Mất kết nối âm thanh",
   "conversation.call.end.max_duration": "Hết thời lượng tối đa",
   "conversation.call.end.ended_before_answer": "Cuộc gọi kết thúc trước khi khách nghe",
-  "conversation.call.end.error": "Không gọi được"
+  "conversation.call.end.error": "Không gọi được",
+  "admin.channelAccounts.calls": "Gọi điện",
+  "admin.channelAccounts.callsOn": "Đã bật gọi điện cho {name}",
+  "admin.channelAccounts.callsOff": "Đã tắt gọi điện cho {name}"
 }
