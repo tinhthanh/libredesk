@@ -331,7 +331,11 @@ const setChannelCallMedia = (id, camera, mic) => http.post(`/gw/calls/${encodeUR
 const getChannelCallAccounts = () => http.get('/gw/calls/accounts')
 // Admin: turn calls on/off per Zalo account (gateway settings.json).
 const getCallSettings = () => http.get('/gw/settings/calls')
-const setCallSetting = (account, enabled, video = false) => http.put('/gw/settings/calls', { account, enabled, video })
+const setCallSetting = (account, enabled, video = false, channel = '') =>
+  http.put('/gw/settings/calls', { account, enabled, video, channel })
+// Branch phones (SMS channel, vglink): dial a customer, and who is calling right now (gateway phonecalls.go).
+const dialBranchPhone = (conversationUUID) => http.post(`/gw/conversations/${encodeURIComponent(conversationUUID)}/dial`, {})
+const getRingingCalls = () => http.get('/gw/calls/ringing')
 const getTags = () => http.get('/api/v1/tags')
 const importTags = (data) =>
   http.post('/api/v1/tags/import', data, {
@@ -696,6 +700,8 @@ export default {
   getChannelCallAccounts,
   getCallSettings,
   setCallSetting,
+  dialBranchPhone,
+  getRingingCalls,
   editChannelMessage,
   getChannelPresence,
   resolveChannelRecipient,

@@ -24,7 +24,7 @@ export const call = reactive({
 
 // Tài khoản Zalo được gọi điện (admin bật trên trang Tài khoản kênh). Gateway trả 404 khi chưa
 // có zalo-call. Hỏi lại sau mỗi phút để bật/tắt có tác dụng mà không cần tải lại trang.
-export const callFeature = reactive({ checked: false, accounts: [], videoAccounts: [] })
+export const callFeature = reactive({ checked: false, accounts: [], videoAccounts: [], smsAccounts: [] })
 const FEATURE_TTL_MS = 60 * 1000
 let featureProbe = null
 let featureAt = 0
@@ -37,10 +37,12 @@ export function ensureCallFeature() {
       .then(({ data }) => {
         callFeature.accounts = Array.isArray(data?.zalo_accounts) ? data.zalo_accounts : []
         callFeature.videoAccounts = Array.isArray(data?.video_accounts) ? data.video_accounts : []
+        callFeature.smsAccounts = Array.isArray(data?.sms_accounts) ? data.sms_accounts : []
       })
       .catch(() => {
         callFeature.accounts = []
         callFeature.videoAccounts = []
+        callFeature.smsAccounts = []
       })
       .finally(() => {
         callFeature.checked = true
@@ -53,6 +55,12 @@ export function ensureCallFeature() {
 export function zaloAccountOf(conversation) {
   const name = conversation?.inbox_name || ''
   return name.startsWith('Zalo - ') ? name.slice('Zalo - '.length) : ''
+}
+
+// Chi nhánh của hội thoại SMS: inbox gateway đặt tên "SMS - <chi nhánh>".
+export function smsAccountOf(conversation) {
+  const name = conversation?.inbox_name || ''
+  return name.startsWith('SMS - ') ? name.slice('SMS - '.length) : ''
 }
 
 // Luồng video cho cửa sổ gọi video (camera của mình và hình của khách).

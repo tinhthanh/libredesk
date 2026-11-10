@@ -44,6 +44,7 @@
       >
         <div class="flex flex-col h-full rounded-lg overflow-hidden bg-background">
           <ConnectionBanner />
+          <ChannelRingingBanner />
 
           <!-- Show admin banner only in admin routes -->
           <AdminBanner v-if="route.path.startsWith('/admin')" />
@@ -92,6 +93,7 @@ import PageHeader from './components/layout/PageHeader.vue'
 import ViewForm from '@/features/view/ViewForm.vue'
 import AdminBanner from '@/components/banner/AdminBanner.vue'
 import ConnectionBanner from '@/components/banner/ConnectionBanner.vue'
+import ChannelRingingBanner from '@/components/banner/ChannelRingingBanner.vue'
 import { toast as sooner } from 'vue-sonner'
 import Sidebar from '@main/components/sidebar/Sidebar.vue'
 import Command from '@/features/command/CommandBox.vue'

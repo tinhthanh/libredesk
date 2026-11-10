@@ -71,6 +71,18 @@
                       </div>
                     </div>
                     <!-- omnichannel: agents may call this account's customers (gateway settings, off by default) -->
+                    <!-- SMS: điện thoại chi nhánh quay số khi nhân viên bấm 📞 (gateway calls.sms_accounts) -->
+                    <label
+                      v-if="channel.channel === 'sms' && callSettings.smsAvailable"
+                      class="flex items-center gap-2 text-xs text-muted-foreground"
+                    >
+                      <Switch
+                        :checked="callSettings.smsAccounts.includes(account.name)"
+                        :disabled="busy === 'call/' + account.name"
+                        @update:checked="(on) => setCalls(account.name, on, false, 'sms')"
+                      />
+                      {{ t('admin.channelAccounts.calls') }}
+                    </label>
                     <label
                       v-if="channel.channel === 'zalo' && callSettings.available"
                       class="flex items-center gap-2 text-xs text-muted-foreground"
@@ -431,26 +443,33 @@ function toast (description, variant) {
   emitter.emit(EMITTER_EVENTS.SHOW_TOAST, variant ? { variant, description } : { description })
 }
 
-// Gọi khách Zalo: tài khoản nào được bật (gateway /gw/settings/calls).
-const callSettings = ref({ available: false, accounts: [], videoAccounts: [] })
+// Gọi khách Zalo, và gọi qua điện thoại chi nhánh (SMS): tài khoản nào được bật (gateway /gw/settings/calls).
+const noCallSettings = () => ({ available: false, accounts: [], videoAccounts: [], smsAvailable: false, smsAccounts: [] })
+const callSettings = ref(noCallSettings())
 
 async function loadCallSettings () {
   try {
     const { data } = await api.getCallSettings()
     callSettings.value = callSettingsFrom(data)
   } catch {
-    callSettings.value = { available: false, accounts: [], videoAccounts: [] }
+    callSettings.value = noCallSettings()
   }
 }
 
 function callSettingsFrom (data) {
-  return { available: !!data.available, accounts: data.zalo_accounts || [], videoAccounts: data.video_accounts || [] }
+  return {
+    available: !!data.available,
+    accounts: data.zalo_accounts || [],
+    videoAccounts: data.video_accounts || [],
+    smsAvailable: !!data.sms_available,
+    smsAccounts: data.sms_accounts || []
+  }
 }
 
-async function setCalls (name, on, video = false) {
+async function setCalls (name, on, video = false, channel = '') {
   busy.value = 'call/' + name
   try {
-    const { data } = await api.setCallSetting(name, on, video)
+    const { data } = await api.setCallSetting(name, on, video, channel)
     callSettings.value = callSettingsFrom(data)
     const key = video ? (on ? 'videoCallsOn' : 'videoCallsOff') : (on ? 'callsOn' : 'callsOff')
     toast(t('admin.channelAccounts.' + key, { name }))
