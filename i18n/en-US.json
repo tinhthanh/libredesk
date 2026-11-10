@@ -1706,5 +1706,6 @@
   "admin.channelAccounts.videoCalls": "Video calls",
   "admin.channelAccounts.videoCallsOn": "Video calls turned on for {name}",
   "admin.channelAccounts.videoCallsOff": "Video calls turned off for {name}",
-  "conversation.call.end.server_restart": "Cut off because the call service restarted"
+  "conversation.call.end.server_restart": "Cut off because the call service restarted",
+  "conversation.call.cameraOffCard": "Camera is off"
 }

@@ -64,6 +64,8 @@ const VIDEO_MAX_BITRATE = 600000
 
 let pc = null
 let mic = null
+// Khung "Camera đang tắt" gửi thay hình camera (app Zalo không hiện avatar khi tắt camera qua `conf`).
+let card = null // { canvas, track, timer }
 let audio = null
 let poll = null
 let tick = null
@@ -100,7 +102,40 @@ export function waitIceGathering(peer, ms = 5000) {
   })
 }
 
+function stopCard() {
+  if (!card) return
+  clearInterval(card.timer)
+  card.track.stop()
+  card = null
+}
+
+// Khung tĩnh: nền tối, biểu tượng và dòng chữ. Vẽ lại mỗi 500 ms để luồng không bị đứng.
+export function cameraOffCard(label) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 480
+  canvas.height = 360
+  const ctx = canvas.getContext('2d')
+  const draw = () => {
+    ctx.fillStyle = '#1f2937'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.fillStyle = '#e5e7eb'
+    ctx.textAlign = 'center'
+    ctx.font = '64px sans-serif'
+    ctx.fillText('📷', canvas.width / 2, 160)
+    ctx.font = 'bold 28px sans-serif'
+    ctx.fillText(label, canvas.width / 2, 230)
+  }
+  draw()
+  const stream = canvas.captureStream(5)
+  return { canvas, track: stream.getVideoTracks()[0], timer: setInterval(draw, 500) }
+}
+
+function videoSender() {
+  return pc?.getSenders().find((sender) => sender.track?.kind === 'video' || (card && sender.track === card.track))
+}
+
 function cleanup() {
+  stopCard()
   clearInterval(poll)
   clearInterval(tick)
   poll = tick = null
@@ -239,13 +274,35 @@ function limitBitrate(sender) {
   }
 }
 
-// Tắt/bật camera của mình (khách thấy hình đen khi tắt).
-export function toggleCamera() {
-  call.cameraOff = !call.cameraOff
-  mic?.getVideoTracks().forEach((t) => {
-    t.enabled = !call.cameraOff
-  })
+// Tắt/bật camera của mình. Tắt: dừng hẳn camera (đèn tắt) và gửi khung "Camera đang tắt" thay hình,
+// vì app Zalo chỉ hiện màn đen khi không có hình. Bật: xin lại camera và thay hình về.
+export async function toggleCamera(offLabel = 'Camera đang tắt') {
+  const sender = videoSender()
+  if (!call.video || !sender) return
+  if (!call.cameraOff) {
+    call.cameraOff = true
+    card = card || cameraOffCard(offLabel)
+    await sender.replaceTrack(card.track).catch(() => {})
+    mic?.getVideoTracks().forEach((t) => {
+      t.stop()
+      mic.removeTrack(t)
+    })
+    callVideo.local.value = null
+  } else {
+    try {
+      const cam = await navigator.mediaDevices.getUserMedia({ video: VIDEO_CONSTRAINTS })
+      const track = cam.getVideoTracks()[0]
+      mic?.addTrack(track)
+      await sender.replaceTrack(track)
+      callVideo.local.value = new MediaStream([track])
+      stopCard()
+      call.cameraOff = false
+    } catch {
+      return 'camera'
+    }
+  }
   reportMedia()
+  return ''
 }
 
 export function dismissCall() {

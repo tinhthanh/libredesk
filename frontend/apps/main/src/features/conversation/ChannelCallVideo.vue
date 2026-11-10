@@ -44,7 +44,7 @@
         variant="outline"
         class="h-8 w-8 p-0"
         :aria-label="call.cameraOff ? t('conversation.call.cameraOn') : t('conversation.call.cameraOff')"
-        @click="toggleCamera"
+        @click="onToggleCamera"
       >
         <VideoOff v-if="call.cameraOff" class="w-4 h-4 text-destructive" />
         <Video v-else class="w-4 h-4" />
@@ -61,6 +61,8 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Maximize2, Mic, MicOff, Minimize2, PhoneOff, Video, VideoOff } from 'lucide-vue-next'
 import { Button } from '@shared-ui/components/ui/button'
+import { useEmitter } from '@main/composables/useEmitter'
+import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import {
   call,
   callActive,
@@ -78,6 +80,11 @@ const remoteEl = ref(null)
 const localEl = ref(null)
 
 const visible = computed(() => call.video && callActive())
+const emitter = useEmitter()
+const onToggleCamera = async () => {
+  const err = await toggleCamera(t('conversation.call.cameraOffCard'))
+  if (err) emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: t('conversation.call.cameraDenied') })
+}
 const hasRemote = computed(() => !!callVideo.remote.value)
 const statusText = computed(() => {
   const label = t(callStatusKey(call.state, call.reason))
