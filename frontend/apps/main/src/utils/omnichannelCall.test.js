@@ -23,6 +23,7 @@ describe('omnichannel call helpers', () => {
     expect(callStatusKey('ringing', '')).toBe('conversation.call.state.ringing')
     expect(callStatusKey('ended', 'no_answer')).toBe('conversation.call.end.no_answer')
     expect(callStatusKey('ended', 'something_new')).toBe('conversation.call.end.error')
+    expect(callStatusKey('ended', 'server_restart')).toBe('conversation.call.end.server_restart')
   })
 
   it('waits for ICE gathering or gives up after the timeout', async () => {

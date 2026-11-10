@@ -323,6 +323,8 @@ const startChannelCall = (conversationUUID, offerSDP, video = false) =>
   http.post(`/gw/conversations/${encodeURIComponent(conversationUUID)}/call`, { offer_sdp: offerSDP, video }, { timeout: 40000 })
 const getChannelCall = (id) => http.get(`/gw/calls/${encodeURIComponent(id)}`)
 const hangupChannelCall = (id) => http.post(`/gw/calls/${encodeURIComponent(id)}/hangup`, {})
+// Tell the customer's phone the agent's camera/mic state (Zalo `conf`).
+const setChannelCallMedia = (id, camera, mic) => http.post(`/gw/calls/${encodeURIComponent(id)}/media`, { camera, mic })
 // Zalo accounts whose conversations show the call button (404 when calls are off).
 const getChannelCallAccounts = () => http.get('/gw/calls/accounts')
 // Admin: turn calls on/off per Zalo account (gateway settings.json).
@@ -687,6 +689,7 @@ export default {
   startChannelCall,
   getChannelCall,
   hangupChannelCall,
+  setChannelCallMedia,
   getChannelCallAccounts,
   getCallSettings,
   setCallSetting,

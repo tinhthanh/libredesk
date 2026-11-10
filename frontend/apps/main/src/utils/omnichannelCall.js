@@ -77,7 +77,7 @@ export function formatCallDuration(secs) {
 // Khoá i18n cho trạng thái hoặc lý do kết thúc (gateway/zalo-call `reason`).
 export function callStatusKey(state, reason) {
   if (state === 'ended') {
-    const known = ['customer_hangup', 'agent_hangup', 'no_answer', 'rejected', 'busy', 'cancelled', 'browser_gone', 'max_duration', 'ended_before_answer']
+    const known = ['customer_hangup', 'agent_hangup', 'no_answer', 'rejected', 'busy', 'cancelled', 'browser_gone', 'max_duration', 'ended_before_answer', 'server_restart']
     return `conversation.call.end.${known.includes(reason) ? reason : 'error'}`
   }
   return `conversation.call.state.${state || 'idle'}`
@@ -212,11 +212,19 @@ export async function hangupCall() {
   if (callActive()) setTimeout(refresh, 1500)
 }
 
+// Báo điện thoại khách trạng thái camera/micro (ảnh đại diện khi tắt camera, biểu tượng tắt tiếng).
+function reportMedia() {
+  if (call.id && call.state === 'in_call') {
+    api.setChannelCallMedia(call.id, call.video && !call.cameraOff, !call.muted).catch(() => {})
+  }
+}
+
 export function toggleMute() {
   call.muted = !call.muted
   mic?.getAudioTracks().forEach((t) => {
     t.enabled = !call.muted
   })
+  reportMedia()
 }
 
 // Giới hạn bitrate camera để điện thoại khách xem mượt qua relay Zalo.
@@ -237,6 +245,7 @@ export function toggleCamera() {
   mic?.getVideoTracks().forEach((t) => {
     t.enabled = !call.cameraOff
   })
+  reportMedia()
 }
 
 export function dismissCall() {

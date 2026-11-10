@@ -1705,5 +1705,6 @@
   "conversation.call.waitingVideo": "Waiting for the customer’s video…",
   "admin.channelAccounts.videoCalls": "Video calls",
   "admin.channelAccounts.videoCallsOn": "Video calls turned on for {name}",
-  "admin.channelAccounts.videoCallsOff": "Video calls turned off for {name}"
+  "admin.channelAccounts.videoCallsOff": "Video calls turned off for {name}",
+  "conversation.call.end.server_restart": "Cut off because the call service restarted"
 }

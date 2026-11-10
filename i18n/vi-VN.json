@@ -1705,5 +1705,6 @@
   "conversation.call.waitingVideo": "Đang chờ hình của khách…",
   "admin.channelAccounts.videoCalls": "Gọi video",
   "admin.channelAccounts.videoCallsOn": "Đã bật gọi video cho {name}",
-  "admin.channelAccounts.videoCallsOff": "Đã tắt gọi video cho {name}"
+  "admin.channelAccounts.videoCallsOff": "Đã tắt gọi video cho {name}",
+  "conversation.call.end.server_restart": "Bị ngắt do dịch vụ gọi điện khởi động lại"
 }
