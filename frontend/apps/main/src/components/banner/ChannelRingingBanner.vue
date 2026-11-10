@@ -1,31 +1,42 @@
 <template>
   <!-- Khách đang gọi điện thoại chi nhánh (omnichannel docs/plan-sms-call.md, P3; gateway phonecalls.go). -->
   <div
-    v-for="c in calls"
-    :key="c.channel + c.account + c.call_id"
-    class="flex items-center gap-3 px-4 py-2 text-sm bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-100 border-b"
+    v-for="c in ringing"
+    :key="c.account + c.call_id"
+    class="flex flex-wrap items-center gap-2 px-4 py-2 text-sm bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-100 border-b"
     role="status"
     data-testid="ringing-banner"
   >
     <PhoneIncoming class="w-4 h-4 shrink-0 animate-pulse" />
-    <span class="truncate">
+    <span class="truncate mr-auto">
       {{ t('conversation.ringing.text', { who: who(c), branch: c.label }) }}
     </span>
-    <Button v-if="c.conversation_uuid" size="sm" variant="outline" class="ml-auto h-7" @click="open(c)">
+    <template v-if="canControl(c)">
+      <Button size="sm" class="h-7 bg-green-600 hover:bg-green-700 text-white" :disabled="busy" @click="act(c, 'answer')">
+        <Phone class="w-3.5 h-3.5 mr-1" />{{ t('conversation.dial.answer') }}
+      </Button>
+      <Button size="sm" variant="destructive" class="h-7" :disabled="busy" @click="act(c, 'decline')">
+        <PhoneOff class="w-3.5 h-3.5 mr-1" />{{ t('conversation.dial.decline') }}
+      </Button>
+    </template>
+    <Button v-if="c.conversation_uuid" size="sm" variant="outline" class="h-7" @click="open(c)">
       {{ t('conversation.ringing.open') }}
     </Button>
   </div>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { PhoneIncoming } from 'lucide-vue-next'
+import { Phone, PhoneIncoming, PhoneOff } from 'lucide-vue-next'
 import { Button } from '@shared-ui/components/ui/button'
 import { playNotificationSound } from '@shared-ui/composables/useNotificationSound'
 import api from '@main/api'
 import { useUserStore } from '@main/stores/user'
+import { useEmitter } from '@main/composables/useEmitter'
+import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
+import { branchCalls, callFeature, ensureCallFeature } from '@main/utils/omnichannelCall.js'
 
 const POLL_MS = 3000
 // Gateway chưa có kênh SMS (404) hoặc lỗi: hỏi lại thưa hơn.
@@ -34,14 +45,34 @@ const IDLE_MS = 5 * 60 * 1000
 const { t } = useI18n()
 const router = useRouter()
 const userStore = useUserStore()
-const calls = ref([])
+const emitter = useEmitter()
+const busy = ref(false)
 const announced = new Set()
 let timer = null
 let stopped = false
 
+// Thanh này chỉ cho khách gọi tới đang đổ chuông; cuộc gọi đang nói hiện trong hội thoại.
+const ringing = computed(() => branchCalls.list.filter((c) => c.incoming && c.state === 'ringing'))
+
 const who = (c) => (c.name && c.name !== c.number ? `${c.name} (${c.number})` : c.number || t('conversation.ringing.hidden'))
+const canControl = (c) => userStore.can('conversations:write') && callFeature.smsAccounts.includes(c.account)
 
 const open = (c) => router.push({ name: 'inbox-conversation', params: { type: 'all', uuid: c.conversation_uuid } })
+
+async function act (c, action) {
+  busy.value = true
+  try {
+    await api.branchCallAction(c.account, c.call_id, action)
+    if (action === 'answer' && c.conversation_uuid) open(c)
+  } catch (error) {
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, {
+      variant: 'destructive',
+      description: error?.response?.data?.error || t('conversation.dial.failed')
+    })
+  } finally {
+    busy.value = false
+  }
+}
 
 async function poll () {
   let next = POLL_MS
@@ -50,17 +81,19 @@ async function poll () {
       const { data } = await api.getRingingCalls()
       const list = Array.isArray(data?.calls) ? data.calls : []
       for (const c of list) {
-        const key = c.channel + c.account + c.call_id
-        if (!announced.has(key)) {
+        const key = c.account + c.call_id
+        if (c.incoming && c.state === 'ringing' && !announced.has(key)) {
           announced.add(key)
+          ensureCallFeature()
           playNotificationSound()
         }
+        if (c.conversation_uuid) delete branchCalls.dialing[c.conversation_uuid]
       }
       if (announced.size > 200) announced.clear()
-      calls.value = list
+      branchCalls.list = list
     }
   } catch {
-    calls.value = []
+    branchCalls.list = []
     next = IDLE_MS
   }
   if (!stopped) timer = setTimeout(poll, next)

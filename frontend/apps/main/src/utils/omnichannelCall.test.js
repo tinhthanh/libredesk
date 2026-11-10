@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/api', () => ({ default: {} }))
 
-const { callStatusKey, formatCallDuration, smsAccountOf, waitIceGathering, zaloAccountOf } = await import('./omnichannelCall.js')
+const { branchCallOf, branchCalls, callStatusKey, formatCallDuration, secondsSince, smsAccountOf, waitIceGathering, zaloAccountOf } =
+  await import('./omnichannelCall.js')
 
 describe('omnichannel call helpers', () => {
   it('formats durations as m:ss', () => {
@@ -20,6 +21,16 @@ describe('omnichannel call helpers', () => {
     expect(smsAccountOf({ inbox_name: 'SMS - test' })).toBe('test')
     expect(smsAccountOf({ inbox_name: 'Zalo - acc2' })).toBe('')
     expect(smsAccountOf(null)).toBe('')
+  })
+
+  it('finds the branch phone call of a conversation and its running time', () => {
+    branchCalls.list = [{ call_id: 'c1', conversation_uuid: 'u1', state: 'active', since: '2026-11-11T01:00:00Z' }]
+    expect(branchCallOf('u1')?.call_id).toBe('c1')
+    expect(branchCallOf('u2')).toBe(null)
+    expect(branchCallOf('')).toBe(null)
+    expect(secondsSince('2026-11-11T01:00:00Z', Date.parse('2026-11-11T01:02:05Z'))).toBe(125)
+    expect(secondsSince('', 0)).toBe(0)
+    branchCalls.list = []
   })
 
   it('maps states and end reasons to i18n keys', () => {

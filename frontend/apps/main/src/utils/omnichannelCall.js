@@ -57,6 +57,24 @@ export function zaloAccountOf(conversation) {
   return name.startsWith('Zalo - ') ? name.slice('Zalo - '.length) : ''
 }
 
+// Cuộc gọi đang có trên điện thoại chi nhánh (kênh SMS qua vglink; gateway phonecalls.go):
+// thanh báo ở App hỏi GET /gw/calls/ringing và ghi vào đây; thanh cuộc gọi trong hội thoại đọc lại.
+// `dialing`: hội thoại vừa bấm 📞 -> lúc bấm (ms), tới khi điện thoại báo cuộc gọi.
+export const branchCalls = reactive({ list: [], dialing: {} })
+export const DIAL_WAIT_MS = 20 * 1000
+
+// Cuộc gọi của điện thoại chi nhánh thuộc hội thoại này, nếu có.
+export function branchCallOf(conversationUUID) {
+  if (!conversationUUID) return null
+  return branchCalls.list.find((c) => c.conversation_uuid === conversationUUID) || null
+}
+
+// Giây đã qua kể từ một mốc RFC3339 (thời lượng trên thanh cuộc gọi).
+export function secondsSince(iso, now = Date.now()) {
+  const t = Date.parse(iso || '')
+  return Number.isNaN(t) ? 0 : Math.max(0, Math.floor((now - t) / 1000))
+}
+
 // Chi nhánh của hội thoại SMS: inbox gateway đặt tên "SMS - <chi nhánh>".
 export function smsAccountOf(conversation) {
   const name = conversation?.inbox_name || ''

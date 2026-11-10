@@ -336,6 +336,8 @@ const setCallSetting = (account, enabled, video = false, channel = '') =>
 // Branch phones (SMS channel, vglink): dial a customer, and who is calling right now (gateway phonecalls.go).
 const dialBranchPhone = (conversationUUID) => http.post(`/gw/conversations/${encodeURIComponent(conversationUUID)}/dial`, {})
 const getRingingCalls = () => http.get('/gw/calls/ringing')
+const branchCallAction = (account, callID, action) =>
+  http.post(`/gw/branch-calls/${encodeURIComponent(account)}/${encodeURIComponent(callID)}/${action}`, {})
 const getTags = () => http.get('/api/v1/tags')
 const importTags = (data) =>
   http.post('/api/v1/tags/import', data, {
@@ -702,6 +704,7 @@ export default {
   setCallSetting,
   dialBranchPhone,
   getRingingCalls,
+  branchCallAction,
   editChannelMessage,
   getChannelPresence,
   resolveChannelRecipient,
