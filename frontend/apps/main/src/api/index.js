@@ -316,6 +316,13 @@ const editChannelMessage = (uuid, text) =>
 const recallChannelMessage = (uuid) => http.post(`/gw/messages/${encodeURIComponent(uuid)}/recall`, {}, { timeout: 70000 })
 const reactChannelMessage = (uuid, conversationUUID, emoji) =>
   http.post(`/gw/messages/${encodeURIComponent(uuid)}/react`, { conversation_uuid: conversationUUID, emoji }, { timeout: 70000 })
+// Call a Zalo customer from Libredesk (gateway calls.go, zalo-call): TURN credentials,
+// start with the browser's WebRTC offer, poll the state, hang up.
+const getChannelCallIce = () => http.get('/gw/calls/ice')
+const startChannelCall = (conversationUUID, offerSDP) =>
+  http.post(`/gw/conversations/${encodeURIComponent(conversationUUID)}/call`, { offer_sdp: offerSDP }, { timeout: 40000 })
+const getChannelCall = (id) => http.get(`/gw/calls/${encodeURIComponent(id)}`)
+const hangupChannelCall = (id) => http.post(`/gw/calls/${encodeURIComponent(id)}/hangup`, {})
 const getTags = () => http.get('/api/v1/tags')
 const importTags = (data) =>
   http.post('/api/v1/tags/import', data, {
@@ -671,6 +678,10 @@ export default {
   runCanary,
   recallChannelMessage,
   reactChannelMessage,
+  getChannelCallIce,
+  startChannelCall,
+  getChannelCall,
+  hangupChannelCall,
   editChannelMessage,
   getChannelPresence,
   resolveChannelRecipient,

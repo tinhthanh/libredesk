@@ -15,6 +15,7 @@
         <span class="truncate">{{ conversationStore.currentContactName }}</span>
       </div>
       <div class="flex items-center gap-2 shrink-0">
+        <ChannelCallButton />
         <Button
           v-if="isMobile"
           variant="ghost"
@@ -104,6 +105,7 @@ import { formatMessageTimestamp } from '@shared-ui/utils/datetime.js'
 import { Button } from '@shared-ui/components/ui/button'
 import MessageList from '@/features/conversation/message/MessageList.vue'
 import ReplyBox from './ReplyBox.vue'
+import ChannelCallButton from './ChannelCallButton.vue'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { CONVERSATION_DEFAULT_STATUSES } from '@main/constants/conversation'
 import { useEmitter } from '@main/composables/useEmitter'
