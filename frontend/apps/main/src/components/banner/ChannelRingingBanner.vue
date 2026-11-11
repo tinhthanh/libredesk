@@ -37,7 +37,7 @@ import { useUserStore } from '@main/stores/user'
 import { useEmitter } from '@main/composables/useEmitter'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { branchCallAction, branchCalls, callFeature, ensureCallFeature, pruneDialing } from '@main/utils/omnichannelCall.js'
-import { audioWanted, prepareAudio } from '@main/utils/branchCallAudio.js'
+import { audioWanted, branchAudio, prepareAudio, stopBranchAudio } from '@main/utils/branchCallAudio.js'
 
 const POLL_MS = 3000
 // Gateway chưa có kênh SMS (404): hỏi lại thưa hơn. Lỗi khác (mạng chập chờn): thử lại sớm.
@@ -98,6 +98,8 @@ async function poll () {
       for (const k of announced) if (!keys.has(k)) announced.delete(k)
       pruneDialing()
       branchCalls.list = list
+      // Cuộc gọi đang nghe trên máy tính đã xong: tắt micro, đóng âm thanh (chỉ khi hỏi được danh sách).
+      if (branchAudio.key && !list.some((c) => `${c.account}:${c.call_id}` === branchAudio.key)) stopBranchAudio()
     }
   } catch (error) {
     branchCalls.list = []
