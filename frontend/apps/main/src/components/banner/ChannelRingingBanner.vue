@@ -37,6 +37,7 @@ import { useUserStore } from '@main/stores/user'
 import { useEmitter } from '@main/composables/useEmitter'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { branchCallAction, branchCalls, callFeature, ensureCallFeature, pruneDialing } from '@main/utils/omnichannelCall.js'
+import { audioWanted, prepareAudio } from '@main/utils/branchCallAudio.js'
 
 const POLL_MS = 3000
 // Gateway chưa có kênh SMS (404): hỏi lại thưa hơn. Lỗi khác (mạng chập chờn): thử lại sớm.
@@ -62,6 +63,11 @@ const open = (c) => router.push({ name: 'inbox-conversation', params: { type: 'a
 
 async function act (c, action) {
   busy.value = true
+  if (action === 'answer' && c.conversation_uuid) {
+    // Nghe máy trên máy tính: thanh cuộc gọi trong hội thoại tự chuyển tiếng sang đây (P5).
+    prepareAudio()
+    audioWanted[c.conversation_uuid] = Date.now()
+  }
   const { ok, error } = await branchCallAction(c, action)
   busy.value = false
   if (ok) {

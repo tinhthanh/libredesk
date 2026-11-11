@@ -1,6 +1,7 @@
 <template>
-  <!-- SMS (omnichannel docs/plan-sms-call.md, P3): điện thoại chi nhánh quay số khách và thanh cuộc gọi
-       trực tiếp. Các nút điều khiển điện thoại thật qua vglink; tiếng vẫn ở điện thoại. -->
+  <!-- SMS (omnichannel docs/plan-sms-call.md, P3, P5): điện thoại chi nhánh quay số khách và thanh cuộc gọi
+       trực tiếp. Các nút điều khiển điện thoại thật qua vglink; tiếng nghe trên máy tính khi điện thoại
+       cắm cáp vào máy chi nhánh (🎧), không thì ở điện thoại. -->
   <div v-if="visible" class="flex items-center gap-1">
     <template v-if="live">
       <span
@@ -18,7 +19,35 @@
       >
         <Phone class="w-4 h-4 md:mr-1" /><span class="hidden md:inline">{{ t('conversation.dial.answer') }}</span>
       </Button>
-      <Tooltip v-if="live.state === 'active'">
+      <template v-if="live.state === 'active'">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              :variant="audioHere ? 'secondary' : 'ghost'"
+              class="w-11 h-11 md:w-8 md:h-8 p-0"
+              :aria-label="audioHere ? t('conversation.dial.audioOff') : t('conversation.dial.audioOn')"
+              :disabled="branchAudio.status === 'connecting' && audioHere"
+              data-testid="branch-audio"
+              @click="audioHere ? stopBranchAudio() : listen()"
+            >
+              <Smartphone v-if="audioHere" class="w-4 h-4" />
+              <Headphones v-else class="w-4 h-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{{ audioHere ? t('conversation.dial.audioOff') : t('conversation.dial.audioOn') }}</TooltipContent>
+        </Tooltip>
+        <Button
+          v-if="audioHere"
+          variant="ghost"
+          class="w-11 h-11 md:w-8 md:h-8 p-0"
+          :aria-label="branchAudio.muted ? t('conversation.call.unmute') : t('conversation.call.mute')"
+          @click="toggleBranchMute"
+        >
+          <MicOff v-if="branchAudio.muted" class="w-4 h-4 text-destructive" />
+          <Mic v-else class="w-4 h-4" />
+        </Button>
+      </template>
+      <Tooltip v-if="live.state === 'active' && !audioHere">
         <TooltipTrigger as-child>
           <Button
             variant="ghost"
@@ -72,7 +101,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Phone, PhoneOff, PhoneOutgoing, Volume1, Volume2 } from 'lucide-vue-next'
+import { Headphones, Mic, MicOff, Phone, PhoneOff, PhoneOutgoing, Smartphone, Volume1, Volume2 } from 'lucide-vue-next'
 import { Button } from '@shared-ui/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shared-ui/components/ui/tooltip'
 import api from '@main/api'
@@ -92,6 +121,14 @@ import {
   secondsSince,
   smsAccountOf
 } from '@main/utils/omnichannelCall.js'
+import {
+  audioWanted,
+  branchAudio,
+  prepareAudio,
+  startBranchAudio,
+  stopBranchAudio,
+  toggleBranchMute
+} from '@main/utils/branchCallAudio.js'
 
 const { t } = useI18n()
 const conversationStore = useConversationStore()
@@ -142,8 +179,48 @@ const statusText = computed(() => {
   if (!c) return ''
   if (c.state === 'ringing') return c.incoming ? t('conversation.dial.incoming') : t('conversation.dial.dialing')
   const secs = formatCallDuration(secondsSince(c.active_since || c.since, now.value))
-  return `${c.incoming ? t('conversation.dial.talking') : t('conversation.dial.calling')} · ${secs}`
+  const where = audioHere.value
+    ? ` · 🎧 ${branchAudio.status === 'on' ? t('conversation.dial.audioLive') : t('conversation.dial.audioConnecting')}`
+    : ''
+  return `${c.incoming ? t('conversation.dial.talking') : t('conversation.dial.calling')} · ${secs}${where}`
 })
+
+// Tiếng của cuộc gọi này đang ở máy tính (hoặc đang nối).
+const audioHere = computed(() => !!live.value && branchAudio.key === `${live.value.account}:${live.value.call_id}`)
+
+const AUDIO_WANT_MS = 2 * 60 * 1000
+const AUDIO_ERRORS = {
+  mic: 'conversation.call.micDenied',
+  insecure: 'conversation.dial.audioInsecure',
+  error: 'conversation.dial.audioFailed'
+}
+const listen = async () => {
+  const c = live.value
+  if (!c) return
+  await prepareAudio()
+  const why = await startBranchAudio(c)
+  if (why) {
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, {
+      variant: 'destructive',
+      description: AUDIO_ERRORS[why] ? t(AUDIO_ERRORS[why]) : why
+    })
+  }
+}
+
+// Bấm Nghe máy hoặc 📞: khi cuộc gọi bắt đầu nói thì tự chuyển tiếng sang máy tính.
+watch(
+  () => [live.value?.state, live.value?.call_id],
+  ([state]) => {
+    const uuid = conversation.value?.uuid
+    const at = uuid && audioWanted[uuid]
+    if (state === 'active' && at) {
+      delete audioWanted[uuid]
+      // Chỉ cho cuộc gọi vừa bấm (quay số không thành thì ý muốn cũ không áp vào cuộc gọi sau).
+      if (Date.now() - at < AUDIO_WANT_MS) listen()
+    }
+  },
+  { immediate: true }
+)
 
 const fail = (error) =>
   emitter.emit(EMITTER_EVENTS.SHOW_TOAST, {
@@ -155,9 +232,11 @@ const dial = async () => {
   const conv = conversation.value
   if (!conv || busy.value) return
   busy.value = true
+  prepareAudio()
   try {
     await api.dialBranchPhone(conv.uuid)
     branchCalls.dialing[conv.uuid] = Date.now()
+    audioWanted[conv.uuid] = Date.now()
   } catch (error) {
     fail(error)
   } finally {
@@ -169,6 +248,11 @@ const act = async (action) => {
   const c = live.value
   if (!c || busy.value) return
   busy.value = true
+  if (action === 'answer') {
+    prepareAudio()
+    audioWanted[conversation.value.uuid] = Date.now()
+  }
+  if (action === 'decline' && audioHere.value) stopBranchAudio()
   const { ok, error } = await branchCallAction(c, action)
   busy.value = false
   if (!ok) {
