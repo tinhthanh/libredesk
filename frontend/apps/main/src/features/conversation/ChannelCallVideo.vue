@@ -9,7 +9,7 @@
     <div class="flex items-center justify-between gap-2 px-2 py-1 text-xs border-b">
       <span class="truncate font-medium">{{ call.contactName }}</span>
       <span class="text-muted-foreground whitespace-nowrap">{{ statusText }}</span>
-      <Button variant="ghost" class="h-6 w-6 p-0" :aria-label="t('globals.terms.expand')" @click="collapsed = !collapsed">
+      <Button variant="ghost" class="h-6 w-6 p-0" :aria-label="collapsed ? t('globals.terms.expand') : t('globals.terms.collapse')" @click="collapsed = !collapsed">
         <component :is="collapsed ? Maximize2 : Minimize2" class="w-3 h-3" />
       </Button>
     </div>

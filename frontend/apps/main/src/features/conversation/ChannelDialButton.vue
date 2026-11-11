@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Phone, PhoneOff, PhoneOutgoing, Volume1, Volume2 } from 'lucide-vue-next'
 import { Button } from '@shared-ui/components/ui/button'
@@ -83,6 +83,7 @@ import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { omniChannel } from '@main/utils/omnichannel.js'
 import {
   DIAL_WAIT_MS,
+  branchCallAction,
   branchCallOf,
   branchCalls,
   callFeature,
@@ -101,10 +102,11 @@ const busy = ref(false)
 const speakerOf = ref({})
 const now = ref(Date.now())
 let tick = null
-onMounted(() => {
-  tick = setInterval(() => (now.value = Date.now()), 1000)
-})
-onBeforeUnmount(() => clearInterval(tick))
+const stopTick = () => {
+  clearInterval(tick)
+  tick = null
+}
+onBeforeUnmount(stopTick)
 
 const conversation = computed(() => conversationStore.current)
 const account = computed(() => smsAccountOf(conversation.value))
@@ -123,6 +125,17 @@ const dialing = computed(() => {
   const at = branchCalls.dialing[conversation.value?.uuid]
   return !!at && now.value - at < DIAL_WAIT_MS
 })
+// Đồng hồ 1 giây chỉ chạy khi có cuộc gọi hoặc đang quay số (thời lượng, hết hạn chờ quay số).
+watch(
+  () => !!live.value || !!branchCalls.dialing[conversation.value?.uuid],
+  (on) => {
+    if (on && !tick) {
+      now.value = Date.now()
+      tick = setInterval(() => (now.value = Date.now()), 1000)
+    } else if (!on) stopTick()
+  },
+  { immediate: true }
+)
 const speaker = computed(() => !!(live.value && speakerOf.value[live.value.call_id]))
 const statusText = computed(() => {
   const c = live.value
@@ -156,15 +169,14 @@ const act = async (action) => {
   const c = live.value
   if (!c || busy.value) return
   busy.value = true
-  try {
-    await api.branchCallAction(c.account, c.call_id, action)
-    if (action === 'speaker' || action === 'earpiece') {
-      speakerOf.value = { ...speakerOf.value, [c.call_id]: action === 'speaker' }
-    }
-  } catch (error) {
-    fail(error)
-  } finally {
-    busy.value = false
+  const { ok, error } = await branchCallAction(c, action)
+  busy.value = false
+  if (!ok) {
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: error || t('conversation.dial.failed') })
+    return
+  }
+  if (action === 'speaker' || action === 'earpiece') {
+    speakerOf.value = { ...speakerOf.value, [c.call_id]: action === 'speaker' }
   }
 }
 </script>

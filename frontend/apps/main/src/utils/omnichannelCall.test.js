@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/api', () => ({ default: {} }))
 
-const { branchCallOf, branchCalls, callStatusKey, formatCallDuration, secondsSince, smsAccountOf, waitIceGathering, zaloAccountOf } =
+const { DIAL_WAIT_MS, branchCallOf, branchCalls, callStatusKey, pruneDialing, formatCallDuration, secondsSince, smsAccountOf, waitIceGathering, zaloAccountOf } =
   await import('./omnichannelCall.js')
 
 describe('omnichannel call helpers', () => {
@@ -55,5 +55,12 @@ describe('omnichannel call helpers', () => {
     vi.advanceTimersByTime(60)
     await expect(timedOut).resolves.toBeUndefined()
     vi.useRealTimers()
+  })
+
+  it('forgets dials that never became a call', () => {
+    branchCalls.dialing = { old: 1000, fresh: 1000 + DIAL_WAIT_MS }
+    pruneDialing(1000 + DIAL_WAIT_MS + 1)
+    expect(Object.keys(branchCalls.dialing)).toEqual(['fresh'])
+    branchCalls.dialing = {}
   })
 })

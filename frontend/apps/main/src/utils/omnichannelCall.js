@@ -69,6 +69,24 @@ export function branchCallOf(conversationUUID) {
   return branchCalls.list.find((c) => c.conversation_uuid === conversationUUID) || null
 }
 
+// Nghe máy / Từ chối / Cúp / Loa ngoài trên điện thoại chi nhánh. Trả '' hoặc lỗi để hiện toast
+// (lỗi của gateway là tiếng Việt cho nhân viên; còn lại '' -> câu chung của nơi gọi).
+export async function branchCallAction(c, action) {
+  try {
+    await api.branchCallAction(c.account, c.call_id, action)
+    return { ok: true, error: '' }
+  } catch (error) {
+    return { ok: false, error: error?.response?.data?.error || '' }
+  }
+}
+
+// Bỏ các hội thoại "đang quay số" đã quá thời gian chờ (quay số không thành).
+export function pruneDialing(now = Date.now()) {
+  for (const [uuid, at] of Object.entries(branchCalls.dialing)) {
+    if (now - at >= DIAL_WAIT_MS) delete branchCalls.dialing[uuid]
+  }
+}
+
 // Giây đã qua kể từ một mốc RFC3339 (thời lượng trên thanh cuộc gọi).
 export function secondsSince(iso, now = Date.now()) {
   const t = Date.parse(iso || '')
@@ -95,6 +113,12 @@ let card = null // { canvas, track, timer }
 let audio = null
 let poll = null
 let tick = null
+// Lượt gọi hiện tại: bấm Cúp (hoặc kết nối hỏng) giữa lúc startCall đang chờ thì lượt đó bỏ dở.
+let seq = 0
+// Lỗi liên tiếp khi hỏi trạng thái (mạng, gateway): quá ngưỡng thì coi cuộc gọi đã hỏng.
+let pollErrors = 0
+const POLL_MS = 1000
+const POLL_MAX_ERRORS = 15
 
 // Thời lượng "m:ss".
 export function formatCallDuration(secs) {
@@ -136,7 +160,7 @@ function stopCard() {
 }
 
 // Khung tĩnh: nền tối, biểu tượng và dòng chữ. Vẽ lại mỗi 500 ms để luồng không bị đứng.
-export function cameraOffCard(label) {
+function cameraOffCard(label) {
   const canvas = document.createElement('canvas')
   canvas.width = 480
   canvas.height = 360
@@ -162,7 +186,7 @@ function videoSender() {
 
 function cleanup() {
   stopCard()
-  clearInterval(poll)
+  clearTimeout(poll)
   clearInterval(tick)
   poll = tick = null
   mic?.getTracks().forEach((t) => t.stop())
@@ -190,8 +214,11 @@ function finish(reason, error = '') {
 
 async function refresh() {
   if (!call.id) return
+  const id = call.id
   try {
-    const { data } = await api.getChannelCall(call.id)
+    const { data } = await api.getChannelCall(id)
+    if (id !== call.id || !callActive()) return
+    pollErrors = 0
     if (data.state === 'in_call' && !call.answeredAt) call.answeredAt = Date.now()
     if (data.state === 'ended') {
       call.durationSecs = data.duration_secs || call.durationSecs
@@ -200,13 +227,26 @@ async function refresh() {
     }
     if (['dialing', 'ringing', 'in_call'].includes(data.state)) call.state = data.state
   } catch (e) {
-    if (e?.response?.status === 404) finish('error')
+    if (id !== call.id || !callActive()) return
+    if (e?.response?.status === 404 || ++pollErrors >= POLL_MAX_ERRORS) finish('error')
   }
+}
+
+// Hỏi trạng thái nối tiếp nhau (không chồng request khi mạng chậm) tới khi cuộc gọi kết thúc.
+function schedulePoll() {
+  poll = setTimeout(async () => {
+    await refresh()
+    if (callActive() && call.id) schedulePoll()
+  }, POLL_MS)
 }
 
 // Bắt đầu gọi khách của hội thoại (`video` để gọi video). Trả lỗi (chuỗi) để hiện toast, hoặc ''.
 export async function startCall(conversationUUID, contactName, { video = false } = {}) {
   if (callActive()) return 'busy_local'
+  const mine = ++seq
+  // Bị huỷ giữa chừng (Cúp, kết nối hỏng): dừng mọi thứ đã mở ở lượt này.
+  const abandoned = () => mine !== seq || call.state !== 'starting'
+  pollErrors = 0
   Object.assign(call, {
     id: '', conversationUUID, contactName, state: 'starting', reason: '', error: '',
     muted: false, video, cameraOff: false, startedAt: Date.now(), answeredAt: 0, durationSecs: 0
@@ -217,12 +257,19 @@ export async function startCall(conversationUUID, contactName, { video = false }
       video: video ? VIDEO_CONSTRAINTS : false
     })
   } catch {
+    if (abandoned()) return ''
     finish('error', video ? 'camera' : 'mic')
     return video ? 'camera' : 'mic'
+  }
+  if (abandoned()) {
+    mic.getTracks().forEach((t) => t.stop())
+    mic = null
+    return ''
   }
   if (video) callVideo.local.value = new MediaStream(mic.getVideoTracks())
   try {
     const { data: ice } = await api.getChannelCallIce()
+    if (abandoned()) throw new Error('abandoned')
     pc = new RTCPeerConnection({ iceServers: ice.ice_servers || [], iceTransportPolicy: 'relay' })
     mic.getTracks().forEach((t) => {
       const sender = pc.addTrack(t, mic)
@@ -243,17 +290,31 @@ export async function startCall(conversationUUID, contactName, { video = false }
     }
     await pc.setLocalDescription(await pc.createOffer())
     await waitIceGathering(pc)
+    if (abandoned()) throw new Error('abandoned')
     const { data } = await api.startChannelCall(conversationUUID, pc.localDescription.sdp, video)
+    if (abandoned()) {
+      // Gateway đã gọi khách: cúp ngay để điện thoại khách không đổ chuông tiếp.
+      api.hangupChannelCall(data.id).catch(() => {})
+      throw new Error('abandoned')
+    }
     call.id = data.id
     await pc.setRemoteDescription({ type: 'answer', sdp: data.answer_sdp })
     call.state = 'dialing'
-    poll = setInterval(refresh, 1000)
+    schedulePoll()
     tick = setInterval(() => {
       if (call.answeredAt) call.durationSecs = Math.floor((Date.now() - call.answeredAt) / 1000)
     }, 1000)
     return ''
   } catch (e) {
-    const msg = e?.response?.data?.error || e?.message || ''
+    if (mine !== seq) return ''
+    if (e?.message === 'abandoned') {
+      cleanup()
+      return ''
+    }
+    // Khách có thể đang đổ chuông (gateway đã nhận offer): báo cúp.
+    if (call.id) api.hangupChannelCall(call.id).catch(() => {})
+    // Chỉ lỗi của gateway (tiếng Việt cho nhân viên); lỗi thô của trình duyệt thành lỗi chung.
+    const msg = e?.response?.data?.error || ''
     finish('error', msg)
     return msg || 'error'
   }
@@ -261,6 +322,7 @@ export async function startCall(conversationUUID, contactName, { video = false }
 
 export async function hangupCall() {
   if (!call.id) {
+    seq++ // startCall đang chờ: bỏ lượt đó
     finish('cancelled')
     return
   }
@@ -269,8 +331,8 @@ export async function hangupCall() {
   } catch {
     // zalo-call đã kết thúc cuộc gọi
   }
+  // Vòng hỏi trạng thái tiếp tục tới khi zalo-call báo kết thúc.
   await refresh()
-  if (callActive()) setTimeout(refresh, 1500)
 }
 
 // Báo điện thoại khách trạng thái camera/micro (ảnh đại diện khi tắt camera, biểu tượng tắt tiếng).
@@ -302,7 +364,7 @@ function limitBitrate(sender) {
 
 // Tắt/bật camera của mình. Tắt: dừng hẳn camera (đèn tắt) và gửi khung "Camera đang tắt" thay hình,
 // vì app Zalo chỉ hiện màn đen khi không có hình. Bật: xin lại camera và thay hình về.
-export async function toggleCamera(offLabel = 'Camera đang tắt') {
+export async function toggleCamera(offLabel) {
   const sender = videoSender()
   if (!call.video || !sender) return
   if (!call.cameraOff) {

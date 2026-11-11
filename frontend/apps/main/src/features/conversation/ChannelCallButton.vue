@@ -136,9 +136,8 @@ const start = async (video) => {
   const err = await startCall(conv.uuid, conversationStore.currentContactName, { video })
   if (!err) return
   const known = { mic: 'conversation.call.micDenied', camera: 'conversation.call.cameraDenied', error: 'conversation.call.failed' }
-  emitter.emit(EMITTER_EVENTS.SHOW_TOAST, {
-    variant: 'destructive',
-    description: known[err] ? t(known[err]) : err
-  })
+  const description =
+    err === 'busy_local' ? t('conversation.call.otherActive', { name: call.contactName }) : known[err] ? t(known[err]) : err
+  emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description })
 }
 </script>

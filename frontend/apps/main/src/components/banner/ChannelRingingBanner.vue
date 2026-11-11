@@ -36,11 +36,12 @@ import api from '@main/api'
 import { useUserStore } from '@main/stores/user'
 import { useEmitter } from '@main/composables/useEmitter'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
-import { branchCalls, callFeature, ensureCallFeature } from '@main/utils/omnichannelCall.js'
+import { branchCallAction, branchCalls, callFeature, ensureCallFeature, pruneDialing } from '@main/utils/omnichannelCall.js'
 
 const POLL_MS = 3000
-// Gateway chưa có kênh SMS (404) hoặc lỗi: hỏi lại thưa hơn.
+// Gateway chưa có kênh SMS (404): hỏi lại thưa hơn. Lỗi khác (mạng chập chờn): thử lại sớm.
 const IDLE_MS = 5 * 60 * 1000
+const RETRY_MS = 10 * 1000
 
 const { t } = useI18n()
 const router = useRouter()
@@ -61,17 +62,13 @@ const open = (c) => router.push({ name: 'inbox-conversation', params: { type: 'a
 
 async function act (c, action) {
   busy.value = true
-  try {
-    await api.branchCallAction(c.account, c.call_id, action)
+  const { ok, error } = await branchCallAction(c, action)
+  busy.value = false
+  if (ok) {
     if (action === 'answer' && c.conversation_uuid) open(c)
-  } catch (error) {
-    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, {
-      variant: 'destructive',
-      description: error?.response?.data?.error || t('conversation.dial.failed')
-    })
-  } finally {
-    busy.value = false
+    return
   }
+  emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: error || t('conversation.dial.failed') })
 }
 
 async function poll () {
@@ -80,8 +77,10 @@ async function poll () {
     if (userStore.can('messages:read')) {
       const { data } = await api.getRingingCalls()
       const list = Array.isArray(data?.calls) ? data.calls : []
+      const keys = new Set()
       for (const c of list) {
         const key = c.account + c.call_id
+        keys.add(key)
         if (c.incoming && c.state === 'ringing' && !announced.has(key)) {
           announced.add(key)
           ensureCallFeature()
@@ -89,12 +88,14 @@ async function poll () {
         }
         if (c.conversation_uuid) delete branchCalls.dialing[c.conversation_uuid]
       }
-      if (announced.size > 200) announced.clear()
+      // Chỉ nhớ các cuộc gọi còn trong danh sách: cuộc đang đổ chuông không báo lại.
+      for (const k of announced) if (!keys.has(k)) announced.delete(k)
+      pruneDialing()
       branchCalls.list = list
     }
-  } catch {
+  } catch (error) {
     branchCalls.list = []
-    next = IDLE_MS
+    next = error?.response?.status === 404 ? IDLE_MS : RETRY_MS
   }
   if (!stopped) timer = setTimeout(poll, next)
 }
