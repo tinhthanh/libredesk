@@ -43,7 +43,7 @@
         >
           <template v-if="isImage">
             <img
-              :src="attachment.thumbnail_url || getThumbFilepath(attachment.url)"
+              :src="imagePreviewSrc(attachment, getThumbFilepath)"
               :alt="attachment.name"
               class="w-full h-full object-cover"
               @error="fallbackToOriginal($event, attachment.url)"
@@ -96,7 +96,7 @@ import { computed, ref } from 'vue'
 import { formatBytes, getThumbFilepath } from '@shared-ui/utils/file'
 import DownloadLink from '@/components/DownloadLink.vue'
 import { Popover, PopoverContent, PopoverTrigger } from '@shared-ui/components/ui/popover'
-import { isSticker } from '@main/utils/omnichannel.js'
+import { imagePreviewSrc, isSticker } from '@main/utils/omnichannel.js'
 import {
   FileText,
   FileSpreadsheet,

@@ -84,6 +84,13 @@ export function isSticker(attachment) {
   return (attachment?.content_type || '').startsWith('image/') && STICKER_NAME.test(attachment?.name || '')
 }
 
+// imagePreviewSrc: the bubble shows the server's thumbnail, but thumbnails are
+// static PNGs, so an animated GIF uses the original file to keep playing.
+export function imagePreviewSrc(attachment, thumbFor) {
+  if ((attachment?.content_type || '').toLowerCase() === 'image/gif') return attachment.url
+  return attachment?.thumbnail_url || thumbFor(attachment?.url)
+}
+
 // isStickerOnly: a lone sticker without text is drawn bare, like Messenger and Zalo do.
 export function isStickerOnly(content, attachments) {
   const files = (attachments || []).filter((a) => a.disposition !== 'inline')

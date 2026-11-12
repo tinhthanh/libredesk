@@ -4,6 +4,7 @@ import {
   canRecallInbox,
   customerQuote,
   isOmnichannelInbox,
+  imagePreviewSrc,
   isSticker,
   isStickerOnly,
   nextReaction,
@@ -176,5 +177,16 @@ describe('omnichannel owner replies', () => {
   it('shortens the list preview', () => {
     expect(ownerPreview('👤 Chủ tài khoản trả lời trực tiếp (điện thoại/ứng dụng khác). · Chủ tài khoản Xin chao')).toBe('Xin chao')
     expect(ownerPreview('Xin chao')).toBe(null)
+  })
+})
+
+describe('imagePreviewSrc', () => {
+  const thumb = (url) => `thumb:${url}`
+  it('keeps animated GIFs playing with the original file', () => {
+    expect(imagePreviewSrc({ content_type: 'image/gif', url: '/uploads/a', thumbnail_url: '/t' }, thumb)).toBe('/uploads/a')
+  })
+  it('uses the thumbnail for other images', () => {
+    expect(imagePreviewSrc({ content_type: 'image/jpeg', url: '/uploads/b', thumbnail_url: '/t' }, thumb)).toBe('/t')
+    expect(imagePreviewSrc({ content_type: 'image/png', url: '/uploads/c' }, thumb)).toBe('thumb:/uploads/c')
   })
 })
