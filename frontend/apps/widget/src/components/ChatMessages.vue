@@ -65,7 +65,7 @@
             }}</span>
             <Letter
               v-else
-              :html="message.content"
+              :html="safeHtml(message.content)"
               :allowedSchemas="['cid', 'https', 'http', 'mailto']"
               :allowed-css-properties="extendedCssProperties"
               class="native-html"
@@ -159,6 +159,7 @@ import { useChatStore } from '../store/chat.js'
 import { useRelativeTime } from '@widget/composables/useRelativeTime.js'
 import { useI18n } from 'vue-i18n'
 import { Letter } from 'vue-letter'
+import { safeHtml } from '@shared-ui/utils/safeHtml.js'
 import { allowedCssProperties } from 'lettersanitizer'
 import ScrollToBottomButton from '@shared-ui/components/ScrollToBottomButton'
 import ChatIntro from './ChatIntro.vue'
@@ -170,7 +171,8 @@ import { Spinner } from '@shared-ui/components/ui/spinner'
 import { containsQuoteMarkers } from '@shared-ui/utils/quotedContent.js'
 import { useStickyScroll } from '@shared-ui/composables'
 
-const extendedCssProperties = [...allowedCssProperties, 'transform', 'transform-origin']
+// No transform: message HTML must not move over the widget's own UI.
+const extendedCssProperties = [...allowedCssProperties]
 
 const props = defineProps({
   showPreChatForm: {

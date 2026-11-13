@@ -149,7 +149,7 @@
                 </div>
                 <div v-else ref="messageContentEl" @click="onMessageContentClick">
                   <Letter
-                    :html="sanitizedContent"
+                    :html="safeHtml(sanitizedContent)"
                     :allowedSchemas="['cid', 'https', 'http', 'mailto']"
                     :allowed-css-properties="extendedCssProperties"
                     class="mb-1 native-html break-words"
@@ -434,6 +434,7 @@ import { Spinner } from '@shared-ui/components/ui/spinner'
 import { formatMessageTimestamp, formatFullTimestamp } from '@shared-ui/utils/datetime.js'
 import { Avatar, AvatarFallback, AvatarImage } from '@shared-ui/components/ui/avatar'
 import { Letter } from 'vue-letter'
+import { safeHtml } from '@shared-ui/utils/safeHtml.js'
 import { allowedCssProperties } from 'lettersanitizer'
 import ImageLightbox from '@/components/ImageLightbox.vue'
 import BubbleAttachmentPreview from '@main/features/conversation/message/attachment/BubbleAttachmentPreview.vue'
@@ -460,7 +461,9 @@ import {
   senderAvatarURL
 } from '@main/utils/omnichannel.js'
 
-const extendedCssProperties = [...allowedCssProperties, 'transform', 'transform-origin']
+// No transform: with the expand button removing the clipping, it lets message HTML move over
+// the app's own UI (a fake sign-in box).
+const extendedCssProperties = [...allowedCssProperties]
 
 const COLLAPSE_THRESHOLD_PX = 400
 

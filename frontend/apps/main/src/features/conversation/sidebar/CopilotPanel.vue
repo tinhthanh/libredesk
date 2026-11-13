@@ -82,7 +82,7 @@
                 : 'bg-muted text-foreground'
             "
           >
-            <Letter v-if="!msg.isUser" :html="msg.content" class="native-html" />
+            <Letter v-if="!msg.isUser" :html="safeHtml(msg.content)" class="native-html" />
             <template v-else>{{ msg.content }}</template>
           </div>
           <div v-if="!msg.isUser && msg.content" class="flex gap-0.5">
@@ -173,6 +173,7 @@ import {
 import { Textarea } from '@shared-ui/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shared-ui/components/ui/tooltip'
 import { Letter } from 'vue-letter'
+import { safeHtml } from '@shared-ui/utils/safeHtml.js'
 import { DotLoader } from '@shared-ui/components/ui/loader'
 import { Eraser, Bot, Copy, Reply, StickyNote } from 'lucide-vue-next'
 import { useConversationStore } from '@/stores/conversation'
