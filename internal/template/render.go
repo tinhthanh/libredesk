@@ -3,6 +3,7 @@ package template
 import (
 	"bytes"
 	"fmt"
+	htmltemplate "html/template"
 	"strings"
 	"text/template"
 
@@ -28,8 +29,13 @@ const (
 
 // RenderString renders Go template variables in the given content string
 // without wrapping it in the base email template. Returns original content on any error.
+//
+// It renders as HTML (html/template): every value is escaped for where it lands, so data a
+// customer controls (a contact's name) or a {{ "..." }} that reached the content can't add
+// markup to a message or note. The content itself is HTML written by staff (a reply, a
+// macro, a stored template) and stays as it is.
 func (m *Manager) RenderString(data any, content string) string {
-	t, err := template.New("content").Funcs(m.funcMap).Parse(content)
+	t, err := htmltemplate.New("content").Funcs(htmltemplate.FuncMap(m.funcMap)).Parse(content)
 	if err != nil {
 		return content
 	}

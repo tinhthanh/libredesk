@@ -239,6 +239,26 @@ func (m *Manager) sendOutgoingMessage(message models.Message) {
 	}
 }
 
+// renderMessageContent renders the template variables (a macro's {{ .Contact.FirstName }}) in a
+// note or reply before it is stored. Content sent as the System user is stored as it is: the
+// omnichannel gateway posts notes and relays replies as System, and they carry customers' own
+// text (an edited or recalled message, a name), which must never run as a template. The
+// rendering itself escapes HTML (template.RenderString), so a contact's name can't add markup.
+func (m *Manager) renderMessageContent(conversationUUID string, senderID int, content string) string {
+	if !strings.Contains(content, "{{") {
+		return content
+	}
+	sender, err := m.userStore.GetAgent(senderID, "")
+	if err != nil || sender.IsSystemUser() {
+		return content
+	}
+	data, err := m.BuildTemplateData(conversationUUID, senderID)
+	if err != nil {
+		return content
+	}
+	return m.template.RenderString(data, content)
+}
+
 // BuildTemplateData builds the common template data map for rendering message content variables.
 func (m *Manager) BuildTemplateData(conversationUUID string, senderID int) (map[string]any, error) {
 	conversation, err := m.GetConversation(0, conversationUUID, "")
@@ -445,9 +465,7 @@ func (m *Manager) MarkMessageAsPending(uuid string) error {
 // SendPrivateNote inserts a private message in a conversation.
 func (m *Manager) SendPrivateNote(media []mmodels.Media, senderID int, conversationUUID, content string, mentions []models.MentionInput) (models.Message, error) {
 	// Best-effort render template variables before saving.
-	if data, err := m.BuildTemplateData(conversationUUID, senderID); err == nil {
-		content = m.template.RenderString(data, content)
-	}
+	content = m.renderMessageContent(conversationUUID, senderID, content)
 
 	message := models.Message{
 		ConversationUUID: conversationUUID,
@@ -550,9 +568,7 @@ func (m *Manager) QueueReply(media []mmodels.Media, inboxID, senderID, contactID
 	}
 
 	// Best-effort render template variables before saving so agents see rendered content immediately.
-	if data, err := m.BuildTemplateData(conversationUUID, senderID); err == nil {
-		content = m.template.RenderString(data, content)
-	}
+	content = m.renderMessageContent(conversationUUID, senderID, content)
 
 	// Insert the message into the database
 	message = models.Message{
