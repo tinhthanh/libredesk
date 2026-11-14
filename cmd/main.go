@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/abhinavxd/libredesk/internal/clientip"
 	"hash/fnv"
 	"log"
 	"os"
@@ -131,6 +132,7 @@ type App struct {
 	webhook          *webhook.Manager
 	contextLink      *contextlink.Manager
 	rateLimit        *ratelimit.Limiter
+	clientIP         *clientip.Resolver
 	redis            *redis.Client
 	fc               *fastcache.FastCache
 	importer         *importer.Importer
@@ -257,7 +259,8 @@ func main() {
 		aiAgent                     = initAIAgent(db, i18n, ai, conversation, media, settings, user, notifier, rdb)
 		helpCenter                  = initHelpCenter(db, i18n, ai)
 		autoassigner                = initAutoAssigner(team, user, conversation)
-		rateLimiter                 = initRateLimit(rdb)
+		clientIP                    = initClientIP()
+		rateLimiter                 = initRateLimit(rdb, clientIP)
 	)
 
 	wsHub.SetConversationStore(conversation)
@@ -326,6 +329,7 @@ func main() {
 		webhook:          webhook,
 		contextLink:      initContextLink(db, i18n),
 		rateLimit:        rateLimiter,
+		clientIP:         clientIP,
 		redis:            rdb,
 		fc:               initFastCache(rdb),
 		userNotification: userNotification,

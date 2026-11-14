@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"time"
 
-	realip "github.com/ferluci/fast-realip"
 	"github.com/redis/go-redis/v9"
 	"github.com/valyala/fasthttp"
 )
@@ -21,13 +20,16 @@ type Rule struct {
 type Limiter struct {
 	redis *redis.Client
 	rules map[string]Rule
+	ipOf  func(*fasthttp.RequestCtx) string
 }
 
-// New creates a new rate limiter.
-func New(redisClient *redis.Client) *Limiter {
+// New creates a new rate limiter. ipOf names the client a request counts against
+// (clientip.Resolver.IP), so a client can't pick its own bucket with a header.
+func New(redisClient *redis.Client, ipOf func(*fasthttp.RequestCtx) string) *Limiter {
 	return &Limiter{
 		redis: redisClient,
 		rules: make(map[string]Rule),
+		ipOf:  ipOf,
 	}
 }
 
@@ -43,7 +45,7 @@ func (l *Limiter) Check(ctx *fasthttp.RequestCtx, ruleName string) error {
 		return nil
 	}
 
-	clientIP := realip.FromRequest(ctx)
+	clientIP := l.ipOf(ctx)
 	key := fmt.Sprintf("rate_limit:%s:%s", ruleName, clientIP)
 
 	now := time.Now()

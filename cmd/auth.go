@@ -10,7 +10,6 @@ import (
 	"github.com/abhinavxd/libredesk/internal/envelope"
 	"github.com/abhinavxd/libredesk/internal/stringutil"
 	"github.com/abhinavxd/libredesk/internal/user/models"
-	realip "github.com/ferluci/fast-realip"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
 )
@@ -75,7 +74,7 @@ func handleOIDCCallback(r *fastglue.Request) error {
 		code            = string(r.RequestCtx.QueryArgs().Peek("code"))
 		state           = string(r.RequestCtx.QueryArgs().Peek("state"))
 		providerID, err = strconv.Atoi(r.RequestCtx.UserValue("id").(string))
-		ip              = realip.FromRequest(r.RequestCtx)
+		ip              = app.clientIP.IP(r.RequestCtx)
 	)
 	next, _ := app.auth.GetSessionValue(r, oidcNextSessKey)
 	nextStr, _ := next.(string)

@@ -16,7 +16,6 @@ import (
 	"github.com/abhinavxd/libredesk/internal/stringutil"
 	tmpl "github.com/abhinavxd/libredesk/internal/template"
 	"github.com/abhinavxd/libredesk/internal/user/models"
-	realip "github.com/ferluci/fast-realip"
 	"github.com/valyala/fasthttp"
 	"github.com/volatiletech/null/v9"
 	"github.com/zerodha/fastglue"
@@ -94,7 +93,7 @@ func handleUpdateAgentAvailability(r *fastglue.Request) error {
 	var (
 		app      = r.Context.(*App)
 		auser    = r.RequestCtx.UserValue("user").(amodels.User)
-		ip       = realip.FromRequest(r.RequestCtx)
+		ip       = app.clientIP.IP(r.RequestCtx)
 		availReq availabilityRequest
 	)
 
@@ -252,7 +251,7 @@ func handleUpdateAgent(r *fastglue.Request) error {
 		app   = r.Context.(*App)
 		req   = agentReq{}
 		auser = r.RequestCtx.UserValue("user").(amodels.User)
-		ip    = realip.FromRequest(r.RequestCtx)
+		ip    = app.clientIP.IP(r.RequestCtx)
 		id, _ = strconv.Atoi(r.RequestCtx.UserValue("id").(string))
 	)
 	if id == 0 {

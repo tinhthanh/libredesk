@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	realip "github.com/ferluci/fast-realip"
 
 	"github.com/abhinavxd/libredesk/internal/httputil"
 	"github.com/abhinavxd/libredesk/internal/inbox/channel/livechat"
@@ -113,7 +112,7 @@ func (sc *safeConn) allow(kind string, minInterval time.Duration) bool {
 func handleWidgetWS(r *fastglue.Request) error {
 	var app = r.Context.(*App)
 
-	clientIP := realip.FromRequest(r.RequestCtx)
+	clientIP := app.clientIP.IP(r.RequestCtx)
 
 	if err := widgetUpgrader.Upgrade(r.RequestCtx, func(conn *websocket.Conn) {
 		conn.SetReadLimit(wsReadLimitBytes)

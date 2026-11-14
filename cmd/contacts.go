@@ -10,7 +10,6 @@ import (
 	"github.com/abhinavxd/libredesk/internal/envelope"
 	"github.com/abhinavxd/libredesk/internal/stringutil"
 	"github.com/abhinavxd/libredesk/internal/user/models"
-	realip "github.com/ferluci/fast-realip"
 	"github.com/valyala/fasthttp"
 	"github.com/volatiletech/null/v9"
 	"github.com/zerodha/fastglue"
@@ -209,7 +208,7 @@ func handleDeleteContact(r *fastglue.Request) error {
 		}
 	}
 
-	if err := app.activityLog.ContactDeleted(auser.ID, auser.Email, realip.FromRequest(r.RequestCtx), id, contact.Email.String); err != nil {
+	if err := app.activityLog.ContactDeleted(auser.ID, auser.Email, app.clientIP.IP(r.RequestCtx), id, contact.Email.String); err != nil {
 		app.lo.Error("error creating contact deleted activity log", "error", err)
 	}
 
@@ -237,7 +236,7 @@ func handleExportContact(r *fastglue.Request) error {
 		return sendErrorEnvelope(r, err)
 	}
 
-	if err := app.activityLog.ContactDataExported(auser.ID, auser.Email, realip.FromRequest(r.RequestCtx), id, contact.Email.String); err != nil {
+	if err := app.activityLog.ContactDataExported(auser.ID, auser.Email, app.clientIP.IP(r.RequestCtx), id, contact.Email.String); err != nil {
 		app.lo.Error("error creating contact data exported activity log", "error", err)
 	}
 
