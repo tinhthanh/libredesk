@@ -448,7 +448,11 @@ func handleResetPassword(r *fastglue.Request) error {
 
 	// The same answer, at once, whether the account exists: the lookup, the token and the email
 	// happen after, so neither the reply nor its timing says which emails have accounts.
-	go sendPasswordReset(app, resetReq.Email)
+	// At most a few emails an hour to one address (counted for unknown addresses too), so an
+	// inbox can't be flooded; the answer is the same either way.
+	if app.loginGuard.AllowReset(r.RequestCtx, resetReq.Email) {
+		go sendPasswordReset(app, resetReq.Email)
+	}
 
 	return r.SendEnvelope(true)
 }

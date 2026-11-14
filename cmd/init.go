@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/abhinavxd/libredesk/internal/clientip"
+	"github.com/abhinavxd/libredesk/internal/loginguard"
 	"log"
 	"os"
 	"path/filepath"
@@ -1279,4 +1280,16 @@ func initRateLimit(redisClient *redis.Client, ip *clientip.Resolver) *ratelimit.
 func setEmailDialControl(c ssrf.Control) bool {
 	email.SetDialControl(c)
 	return true
+}
+
+// initLoginGuard limits sign-in failures and reset requests per account (app.login_failures,
+// app.login_failure_window, app.password_reset_limit, app.password_reset_window; zero takes
+// the defaults: 10 failures in 15m, 3 resets an hour).
+func initLoginGuard(rd *redis.Client) *loginguard.Guard {
+	return loginguard.New(rd, loginguard.Opts{
+		Failures:      ko.Int("app.login_failures"),
+		FailureWindow: ko.Duration("app.login_failure_window"),
+		Resets:        ko.Int("app.password_reset_limit"),
+		ResetWindow:   ko.Duration("app.password_reset_window"),
+	})
 }

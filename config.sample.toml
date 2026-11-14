@@ -22,6 +22,16 @@ trusted_proxies = []
 # request counts as proxied when its peer is a trusted proxy or it carries X-Forwarded-For or
 # X-Real-Ip. Default true.
 system_login_via_proxy = true
+# Per account: after login_failures failed sign-ins for one email within login_failure_window,
+# further attempts for that email are refused (429) until the window ends; a sign-in that goes
+# through clears the count. Unknown emails are counted the same way, so the answer says nothing
+# about which accounts exist. Redis keys hold a hash of the email, not the email.
+login_failures = 10
+login_failure_window = "15m"
+# Per email: at most password_reset_limit reset emails within password_reset_window; requests
+# beyond it get the same answer and send nothing.
+password_reset_limit = 3
+password_reset_window = "1h"
 
 # HTTP server.
 [app.server]
@@ -180,6 +190,10 @@ enabled = true
 requests_per_minute = 100
 
 # Login, password reset and other auth endpoints.
+# Per client IP (app.trusted_proxies decides what that is). Behind a proxy that hides clients'
+# addresses (source NAT), every client shares one IP: the limit is then only a flood guard for
+# the whole instance, so raise it (e.g. 300) and rely on the per-account limit
+# (app.login_failures) against password guessing.
 [rate_limit.auth]
 enabled = true
 requests_per_minute = 30

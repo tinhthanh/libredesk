@@ -32,16 +32,24 @@ func handleLogin(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("globals.messages.badRequest"), nil, envelope.InputError)
 	}
 
+	// Too many failures for this email (known or not): refused until the window ends, the
+	// same answer whatever the password, so guessing stops here.
+	if app.loginGuard.Locked(r.RequestCtx, loginReq.Email) {
+		return r.SendErrorEnvelope(fasthttp.StatusTooManyRequests, app.i18n.T("globals.messages.tooManyRequests"), nil, envelope.GeneralError)
+	}
+
 	// The System user may be kept from signing in through the reverse proxy (from the Internet):
 	// in-cluster callers (gateway, omi-admin) reach Libredesk directly and keep working.
 	if systemLoginRefused(loginReq.Email, app.systemLoginViaProxy, app.clientIP.ViaProxy(r.RequestCtx)) {
 		app.lo.Warn("refused System sign-in through the proxy", "ip", ip)
+		app.loginGuard.Failed(r.RequestCtx, loginReq.Email)
 		return sendErrorEnvelope(r, app.user.RefuseLogin([]byte(loginReq.Password)))
 	}
 
 	// Verify email and password.
 	user, err := app.user.VerifyPassword(loginReq.Email, []byte(loginReq.Password))
 	if err != nil {
+		app.loginGuard.Failed(r.RequestCtx, loginReq.Email)
 		return sendErrorEnvelope(r, err)
 	}
 
@@ -71,6 +79,7 @@ func handleLogin(r *fastglue.Request) error {
 	}
 
 	app.user.InvalidateAgentCache(user.ID)
+	app.loginGuard.Succeeded(r.RequestCtx, loginReq.Email)
 
 	// Insert activity log.
 	if err := app.activityLog.Login(user.ID, user.Email.String, ip); err != nil {

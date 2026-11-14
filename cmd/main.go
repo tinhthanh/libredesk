@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/abhinavxd/libredesk/internal/clientip"
+	"github.com/abhinavxd/libredesk/internal/loginguard"
 	"hash/fnv"
 	"log"
 	"os"
@@ -133,6 +134,7 @@ type App struct {
 	contextLink      *contextlink.Manager
 	rateLimit        *ratelimit.Limiter
 	clientIP         *clientip.Resolver
+	loginGuard       *loginguard.Guard
 	// systemLoginViaProxy: whether the System user may sign in through the proxy (app.system_login_via_proxy).
 	systemLoginViaProxy bool
 	redis               *redis.Client
@@ -265,6 +267,7 @@ func main() {
 		autoassigner                = initAutoAssigner(team, user, conversation)
 		clientIP                    = initClientIP()
 		rateLimiter                 = initRateLimit(rdb, clientIP)
+		loginGuard                  = initLoginGuard(rdb)
 	)
 
 	wsHub.SetConversationStore(conversation)
@@ -334,6 +337,7 @@ func main() {
 		contextLink:         initContextLink(db, i18n),
 		rateLimit:           rateLimiter,
 		clientIP:            clientIP,
+		loginGuard:          loginGuard,
 		systemLoginViaProxy: !ko.Exists("app.system_login_via_proxy") || ko.Bool("app.system_login_via_proxy"),
 		redis:               rdb,
 		fc:                  initFastCache(rdb),
