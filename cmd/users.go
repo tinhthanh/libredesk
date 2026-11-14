@@ -299,6 +299,13 @@ func handleUpdateAgent(r *fastglue.Request) error {
 	app.user.InvalidateAgentCache(id)
 	app.wsHub.KickUser(id)
 
+	// A new password, other roles or a disabled account end the sessions the agent had.
+	if sessionsMustEnd(req.NewPassword != "", agent.Roles, req.Roles, agent.Enabled, req.Enabled) {
+		if err := app.auth.EndUserSessions(r.RequestCtx, id); err != nil {
+			app.lo.Error("error ending agent sessions", "id", id, "error", err)
+		}
+	}
+
 	// Create activity log if user availability status changed.
 	if oldAvailabilityStatus != req.AvailabilityStatus {
 		if err := app.activityLog.UserAvailability(auser.ID, auser.Email, req.AvailabilityStatus, ip, req.Email, id); err != nil {
@@ -362,6 +369,9 @@ func handleDeleteAgent(r *fastglue.Request) error {
 
 	defer app.wsHub.KickUser(id)
 	defer app.user.InvalidateAgentCache(id)
+	if err := app.auth.EndUserSessions(r.RequestCtx, id); err != nil {
+		app.lo.Error("error ending agent sessions", "id", id, "error", err)
+	}
 
 	// Unassign all open conversations assigned to the user.
 	if err := app.conversation.UnassignOpen(id); err != nil {
@@ -492,6 +502,9 @@ func handleSetPassword(r *fastglue.Request) error {
 	id, err := app.user.ResetPassword(req.Token, req.Password)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
+	}
+	if err := app.auth.EndUserSessions(r.RequestCtx, id); err != nil {
+		app.lo.Error("error ending agent sessions", "id", id, "error", err)
 	}
 	app.user.InvalidateAgentCache(id)
 	app.wsHub.KickUser(id)

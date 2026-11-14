@@ -271,6 +271,7 @@ func (a *Auth) SaveSession(user amodels.User, r *fastglue.Request) error {
 		"email":      user.Email,
 		"first_name": user.FirstName,
 		"last_name":  user.LastName,
+		"issued_at":  time.Now().UnixMilli(),
 	}); err != nil {
 		a.logger.Error("error setting login session", "error", err)
 		return err
@@ -351,7 +352,7 @@ func (a *Auth) ValidateSession(r *fastglue.Request) (models.User, error) {
 		return models.User{}, err
 	}
 
-	sessVals, err := sess.GetMulti("id", "email", "first_name", "last_name")
+	sessVals, err := sess.GetMulti("id", "email", "first_name", "last_name", "issued_at")
 	if err != nil {
 		a.logger.Error("error fetching session variables", "error", err)
 		return models.User{}, err
@@ -362,7 +363,15 @@ func (a *Auth) ValidateSession(r *fastglue.Request) (models.User, error) {
 		email, _     = sess.String(sessVals["email"], nil)
 		firstName, _ = sess.String(sessVals["first_name"], nil)
 		lastName, _  = sess.String(sessVals["last_name"], nil)
+		issuedAt, _  = sess.Int64(sessVals["issued_at"], nil)
 	)
+
+	// A session from before the user's sessions were ended (password or role changed,
+	// disabled) is over.
+	if a.sessionEnded(r.RequestCtx, userID, issuedAt) {
+		_ = sess.Destroy()
+		return models.User{}, simplesessions.ErrInvalidSession
+	}
 
 	return models.User{
 		ID:        userID,
@@ -469,4 +478,34 @@ func simpleSessSetCookieCB(c *http.Cookie, w interface{}) error {
 
 	req.RequestCtx.Response.Header.SetCookie(fc)
 	return nil
+}
+
+// sessionsAfterKey holds when a user's sessions were last ended (unix milliseconds): sessions
+// issued before it are no longer valid.
+func sessionsAfterKey(userID int) string { return fmt.Sprintf("auth:user:%d:sessions_after", userID) }
+
+// endedSessionTTL outlives any session, so the mark is there for as long as one could be.
+const endedSessionTTL = 31 * 24 * time.Hour
+
+// EndUserSessions ends every session the user has now (the one making the request included).
+// Call it when their password, roles or enabled state change.
+func (a *Auth) EndUserSessions(ctx context.Context, userID int) error {
+	if a.rd == nil || userID <= 0 {
+		return nil
+	}
+	// One millisecond past now, so a session issued in this same millisecond is over too.
+	return a.rd.Set(ctx, sessionsAfterKey(userID), time.Now().UnixMilli()+1, endedSessionTTL).Err()
+}
+
+// sessionEnded says whether a session issued at issuedAt (unix ms; 0 for one from before this
+// was recorded) has been ended. Redis unreachable keeps the session (fail open, as before).
+func (a *Auth) sessionEnded(ctx context.Context, userID int, issuedAt int64) bool {
+	if a.rd == nil || userID <= 0 {
+		return false
+	}
+	after, err := a.rd.Get(ctx, sessionsAfterKey(userID)).Int64()
+	if err != nil {
+		return false
+	}
+	return issuedAt < after
 }

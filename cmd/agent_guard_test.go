@@ -36,3 +36,23 @@ func TestRoleChangeRefusal(t *testing.T) {
 		t.Error("an Admin edits any role")
 	}
 }
+
+func TestSessionsMustEnd(t *testing.T) {
+	cases := []struct {
+		name            string
+		pw              bool
+		old, new        []string
+		wasOn, on, want bool
+	}{
+		{"new password", true, []string{"Agent"}, []string{"Agent"}, true, true, true},
+		{"disabled", false, []string{"Agent"}, []string{"Agent"}, true, false, true},
+		{"role added", false, []string{"Agent"}, []string{"Agent", "Admin"}, true, true, true},
+		{"role swapped", false, []string{"Agent"}, []string{"Manager"}, true, true, true},
+		{"name only", false, []string{"Agent"}, []string{"agent"}, true, true, false},
+	}
+	for _, c := range cases {
+		if got := sessionsMustEnd(c.pw, c.old, c.new, c.wasOn, c.on); got != c.want {
+			t.Errorf("%s: got %v", c.name, got)
+		}
+	}
+}

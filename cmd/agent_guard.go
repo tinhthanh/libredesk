@@ -58,3 +58,20 @@ func callerRoles(app *App, r *fastglue.Request) ([]string, error) {
 func refuse(app *App, r *fastglue.Request, key string) error {
 	return sendErrorEnvelope(r, envelope.NewError(envelope.PermissionError, app.i18n.T(key), nil))
 }
+
+// sessionsMustEnd says whether an agent's change ends the sessions they have: a new password,
+// a different set of roles, or the account disabled.
+func sessionsMustEnd(newPassword bool, oldRoles, newRoles []string, wasEnabled, enabled bool) bool {
+	if newPassword || (wasEnabled && !enabled) {
+		return true
+	}
+	if len(oldRoles) != len(newRoles) {
+		return true
+	}
+	for _, r := range newRoles {
+		if !hasRole(oldRoles, r) {
+			return true
+		}
+	}
+	return false
+}
