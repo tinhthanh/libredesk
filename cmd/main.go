@@ -133,10 +133,12 @@ type App struct {
 	contextLink      *contextlink.Manager
 	rateLimit        *ratelimit.Limiter
 	clientIP         *clientip.Resolver
-	redis            *redis.Client
-	fc               *fastcache.FastCache
-	importer         *importer.Importer
-	wsHub            *ws.Hub
+	// systemLoginViaProxy: whether the System user may sign in through the proxy (app.system_login_via_proxy).
+	systemLoginViaProxy bool
+	redis               *redis.Client
+	fc                  *fastcache.FastCache
+	importer            *importer.Importer
+	wsHub               *ws.Hub
 
 	// Global state that stores data on an available app update.
 	update *AppUpdate
@@ -292,48 +294,49 @@ func main() {
 	go ai.Run(ctx)
 
 	var app = &App{
-		ctx:              ctx,
-		lo:               lo,
-		fs:               fs,
-		sla:              sla,
-		oidc:             oidc,
-		i18n:             i18n,
-		auth:             auth,
-		media:            media,
-		setting:          settings,
-		inbox:            inbox,
-		user:             user,
-		team:             team,
-		csat:             csat,
-		status:           status,
-		priority:         priority,
-		tmpl:             template,
-		notifier:         notifier,
-		consts:           atomic.Value{},
-		conversation:     conversation,
-		automation:       automation,
-		businessHours:    businessHours,
-		activityLog:      initActivityLog(db, i18n),
-		customAttribute:  initCustomAttribute(db, i18n),
-		authz:            initAuthz(i18n),
-		view:             initView(db, i18n),
-		report:           initReport(db, i18n),
-		search:           initSearch(db, i18n),
-		role:             initRole(db, i18n),
-		tag:              initTag(db, i18n),
-		macro:            initMacro(db, i18n),
-		ai:               ai,
-		aiAgent:          aiAgent,
-		helpcenter:       helpCenter,
-		importer:         initImporter(i18n),
-		webhook:          webhook,
-		contextLink:      initContextLink(db, i18n),
-		rateLimit:        rateLimiter,
-		clientIP:         clientIP,
-		redis:            rdb,
-		fc:               initFastCache(rdb),
-		userNotification: userNotification,
-		wsHub:            wsHub,
+		ctx:                 ctx,
+		lo:                  lo,
+		fs:                  fs,
+		sla:                 sla,
+		oidc:                oidc,
+		i18n:                i18n,
+		auth:                auth,
+		media:               media,
+		setting:             settings,
+		inbox:               inbox,
+		user:                user,
+		team:                team,
+		csat:                csat,
+		status:              status,
+		priority:            priority,
+		tmpl:                template,
+		notifier:            notifier,
+		consts:              atomic.Value{},
+		conversation:        conversation,
+		automation:          automation,
+		businessHours:       businessHours,
+		activityLog:         initActivityLog(db, i18n),
+		customAttribute:     initCustomAttribute(db, i18n),
+		authz:               initAuthz(i18n),
+		view:                initView(db, i18n),
+		report:              initReport(db, i18n),
+		search:              initSearch(db, i18n),
+		role:                initRole(db, i18n),
+		tag:                 initTag(db, i18n),
+		macro:               initMacro(db, i18n),
+		ai:                  ai,
+		aiAgent:             aiAgent,
+		helpcenter:          helpCenter,
+		importer:            initImporter(i18n),
+		webhook:             webhook,
+		contextLink:         initContextLink(db, i18n),
+		rateLimit:           rateLimiter,
+		clientIP:            clientIP,
+		systemLoginViaProxy: !ko.Exists("app.system_login_via_proxy") || ko.Bool("app.system_login_via_proxy"),
+		redis:               rdb,
+		fc:                  initFastCache(rdb),
+		userNotification:    userNotification,
+		wsHub:               wsHub,
 	}
 	app.consts.Store(constants)
 	helpCenterCacheOpts.Logger = log.New(helpCenterCacheLogWriter{lo: app.lo}, "", 0)

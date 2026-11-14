@@ -17,6 +17,11 @@ encryption_key = "your-32-char-random-string-here!"
 # Empty trusts nobody: the TCP peer is the client. Behind a reverse proxy, list only the proxy's
 # addresses (e.g. the Kubernetes pod CIDR for Traefik); never 0.0.0.0/0.
 trusted_proxies = []
+# Whether the System user may sign in through a proxy (from the Internet). false keeps it to
+# direct calls inside the network (an integration reaching Libredesk without the proxy); a
+# request counts as proxied when its peer is a trusted proxy or it carries X-Forwarded-For or
+# X-Real-Ip. Default true.
+system_login_via_proxy = true
 
 # HTTP server.
 [app.server]

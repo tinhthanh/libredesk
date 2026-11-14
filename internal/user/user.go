@@ -158,6 +158,16 @@ func (u *Manager) VerifyPassword(email string, password []byte) (models.User, er
 	return user, nil
 }
 
+// dummyPasswordHash is checked against when there is no account to check, so a refused or
+// unknown login costs the same bcrypt work as a wrong password and the timing tells nothing.
+var dummyPasswordHash, _ = bcrypt.GenerateFromPassword([]byte("libredesk-dummy-password"), bcrypt.DefaultCost)
+
+// RefuseLogin answers a login that must not go through exactly as a wrong password does.
+func (u *Manager) RefuseLogin(password []byte) error {
+	_ = bcrypt.CompareHashAndPassword(dummyPasswordHash, password)
+	return envelope.NewError(envelope.InputError, u.i18n.T("user.invalidEmailPassword"), nil)
+}
+
 // GetAllUsers returns a list of all users.
 func (u *Manager) GetAllUsers(page, pageSize int, userTypes []string, order, orderBy string, filtersJSON, location string) ([]models.UserCompact, error) {
 	query, qArgs, err := u.makeUserListQuery(page, pageSize, userTypes, order, orderBy, filtersJSON, location)

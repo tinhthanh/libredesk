@@ -1,8 +1,11 @@
 package main
 
 import (
+	"strings"
+
 	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
 	"github.com/abhinavxd/libredesk/internal/envelope"
+	umodels "github.com/abhinavxd/libredesk/internal/user/models"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
 )
@@ -27,6 +30,13 @@ func handleLogin(r *fastglue.Request) error {
 
 	if loginReq.Email == "" || loginReq.Password == "" {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("globals.messages.badRequest"), nil, envelope.InputError)
+	}
+
+	// The System user may be kept from signing in through the reverse proxy (from the Internet):
+	// in-cluster callers (gateway, omi-admin) reach Libredesk directly and keep working.
+	if systemLoginRefused(loginReq.Email, app.systemLoginViaProxy, app.clientIP.ViaProxy(r.RequestCtx)) {
+		app.lo.Warn("refused System sign-in through the proxy", "ip", ip)
+		return sendErrorEnvelope(r, app.user.RefuseLogin([]byte(loginReq.Password)))
 	}
 
 	// Verify email and password.
@@ -68,6 +78,12 @@ func handleLogin(r *fastglue.Request) error {
 	}
 
 	return r.SendEnvelope(user)
+}
+
+// systemLoginRefused says whether a sign-in as the System user must be refused: when
+// app.system_login_via_proxy is off and the request came through a proxy.
+func systemLoginRefused(email string, allowViaProxy, viaProxy bool) bool {
+	return !allowViaProxy && viaProxy && strings.EqualFold(strings.TrimSpace(email), umodels.SystemUserEmail)
 }
 
 // handleLogout logs out the user and redirects to the dashboard.
