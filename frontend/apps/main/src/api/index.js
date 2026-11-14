@@ -151,6 +151,7 @@ const updateSettings = (key, data) =>
     }
   })
 const getSettings = (key) => http.get(`/api/v1/settings/${key}`)
+const logout = () => http.post('/api/v1/auth/logout')
 const login = (data) => http.post(`/api/v1/auth/login`, data, {
   headers: {
     'Content-Type': 'application/json'
@@ -709,6 +710,7 @@ export default {
   getChannelPresence,
   resolveChannelRecipient,
   login,
+  logout,
   deleteUser,
   importAgents,
   getAgentImportStatus,

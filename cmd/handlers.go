@@ -20,7 +20,8 @@ const maxPageSize = 500
 func initHandlers(g *fastglue.Fastglue, hub *ws.Hub) {
 	// Authentication.
 	g.POST("/api/v1/auth/login", rateLimit(handleLogin, "auth"))
-	g.GET("/logout", auth(handleLogout))
+	g.GET("/logout", handleLogoutPage)
+	g.POST("/api/v1/auth/logout", auth(handleLogout))
 	g.GET("/api/v1/oidc/{id}/login", rateLimit(handleOIDCLogin, "auth"))
 	g.GET("/api/v1/oidc/{id}/finish", rateLimit(handleOIDCCallback, "auth"))
 

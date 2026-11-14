@@ -134,6 +134,7 @@ import KeyboardShortcutsDialog from '@main/components/KeyboardShortcutsDialog.vu
 
 import { useColorMode } from '@vueuse/core'
 import { ref } from 'vue'
+import api from '@main/api'
 
 const isMobile = useIsMobile()
 const mode = useColorMode()
@@ -142,7 +143,12 @@ const router = useRouter()
 const { t } = useI18n()
 const showShortcuts = ref(false)
 
-const logout = () => {
-  window.location.href = '/logout'
+// Signing out is a POST (with the CSRF token), so no other site can sign someone out.
+const logout = async () => {
+  try {
+    await api.logout()
+  } finally {
+    window.location.href = '/'
+  }
 }
 </script>

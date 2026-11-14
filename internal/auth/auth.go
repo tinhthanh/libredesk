@@ -318,25 +318,45 @@ func (a *Auth) GetSessionValue(r *fastglue.Request, key string) (any, error) {
 
 // SetCSRFCookie sets the CSRF token in the response cookie if not already set.
 func (a *Auth) SetCSRFCookie(r *fastglue.Request) error {
+	if r.RequestCtx.Request.Header.Cookie("csrf_token") != nil {
+		return nil
+	}
+	return a.RotateCSRFCookie(r)
+}
+
+// RotateCSRFCookie sets a new CSRF token, whatever the browser had: at sign-in, so a token
+// planted before (by a sibling subdomain, say) is not the one the session uses.
+func (a *Auth) RotateCSRFCookie(r *fastglue.Request) error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	cookie := r.RequestCtx.Request.Header.Cookie("csrf_token")
-	if cookie == nil {
-		token, err := generateCSRFToken()
-		if err != nil {
-			return err
-		}
-		var csrfCookie fasthttp.Cookie
-		csrfCookie.SetKey("csrf_token")
-		csrfCookie.SetValue(token)
-		csrfCookie.SetPath("/")
-		csrfCookie.SetSecure(a.cfg.SecureCookies)
-		csrfCookie.SetHTTPOnly(false)
-		r.RequestCtx.Response.Header.SetCookie(&csrfCookie)
-		return nil
+	token, err := generateCSRFToken()
+	if err != nil {
+		return err
 	}
+	r.RequestCtx.Response.Header.SetCookie(a.csrfCookie(token, false))
 	return nil
+}
+
+// ClearCSRFCookie removes the CSRF token, at sign-out.
+func (a *Auth) ClearCSRFCookie(r *fastglue.Request) {
+	r.RequestCtx.Response.Header.SetCookie(a.csrfCookie("", true))
+}
+
+// csrfCookie is the CSRF token cookie: readable by the app's script (it sends it back as
+// X-CSRFTOKEN), sent only on same-site requests.
+func (a *Auth) csrfCookie(token string, expire bool) *fasthttp.Cookie {
+	c := fasthttp.AcquireCookie()
+	c.SetKey("csrf_token")
+	c.SetValue(token)
+	c.SetPath("/")
+	c.SetSecure(a.cfg.SecureCookies)
+	c.SetHTTPOnly(false)
+	c.SetSameSite(fasthttp.CookieSameSiteStrictMode)
+	if expire {
+		c.SetExpire(fasthttp.CookieExpireDelete)
+	}
+	return c
 }
 
 // ValidateSession validates the session and returns the user.

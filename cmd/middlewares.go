@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,15 +42,14 @@ func authenticateUser(r *fastglue.Request, app *App) (models.User, error) {
 		return user, nil
 	}
 
-	// Session-based authentication - Check CSRF first.
+	// Session-based authentication - Check CSRF first, for every method that may change
+	// something (anything but GET, HEAD and OPTIONS).
 	method := string(r.RequestCtx.Method())
-	if method == http.MethodPost || method == http.MethodPut || method == http.MethodDelete {
+	if csrfRequired(method) {
 		cookieToken := string(r.RequestCtx.Request.Header.Cookie("csrf_token"))
 		hdrToken := string(r.RequestCtx.Request.Header.Peek("X-CSRFTOKEN"))
-
-		// Match CSRF token from cookie and header.
-		if cookieToken == "" || hdrToken == "" || cookieToken != hdrToken {
-			app.lo.Error("csrf token mismatch", "method", method, "cookie_token", cookieToken, "header_token", hdrToken)
+		if !csrfMatches(cookieToken, hdrToken) {
+			app.lo.Error("csrf token mismatch", "method", method, "path", string(r.RequestCtx.Path()))
 			return user, envelope.NewError(envelope.PermissionError, app.i18n.T("auth.csrfTokenMismatch"), nil)
 		}
 	}
@@ -302,4 +302,18 @@ func authOrSignedURL(handler fastglue.FastRequestHandler) fastglue.FastRequestHa
 		r.RequestCtx.SetUserValue("auth_method", authMethodSignedURL)
 		return handler(r)
 	}
+}
+
+// csrfRequired says whether a request method must carry the CSRF token: all but the safe ones.
+func csrfRequired(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		return false
+	}
+	return true
+}
+
+// csrfMatches compares the cookie and header tokens in constant time; both must be present.
+func csrfMatches(cookie, header string) bool {
+	return cookie != "" && header != "" && subtle.ConstantTimeCompare([]byte(cookie), []byte(header)) == 1
 }

@@ -59,8 +59,8 @@ func handleLogin(r *fastglue.Request) error {
 		app.lo.Error("error saving session", "error", err)
 		return sendErrorEnvelope(r, envelope.NewError(envelope.GeneralError, app.i18n.T("globals.messages.somethingWentWrong"), nil))
 	}
-	// Set CSRF cookie if not already set.
-	if err := app.auth.SetCSRFCookie(r); err != nil {
+	// A new CSRF token for the new session.
+	if err := app.auth.RotateCSRFCookie(r); err != nil {
 		app.lo.Error("error setting csrf cookie", "error", err)
 		return sendErrorEnvelope(r, envelope.NewError(envelope.GeneralError, app.i18n.T("globals.messages.somethingWentWrong"), nil))
 	}
@@ -86,7 +86,13 @@ func systemLoginRefused(email string, allowViaProxy, viaProxy bool) bool {
 	return !allowViaProxy && viaProxy && strings.EqualFold(strings.TrimSpace(email), umodels.SystemUserEmail)
 }
 
-// handleLogout logs out the user and redirects to the dashboard.
+// handleLogoutPage answers the old GET /logout link: a GET must change nothing (any site could
+// send one), so it only goes to the app, where signing out is a POST.
+func handleLogoutPage(r *fastglue.Request) error {
+	return r.RedirectURI("/", fasthttp.StatusFound, nil, "")
+}
+
+// handleLogout (POST /api/v1/auth/logout) ends the session and clears the CSRF token.
 func handleLogout(r *fastglue.Request) error {
 	var (
 		app   = r.Context.(*App)
@@ -103,10 +109,11 @@ func handleLogout(r *fastglue.Request) error {
 		app.lo.Error("error destroying session", "error", err)
 		return sendErrorEnvelope(r, envelope.NewError(envelope.GeneralError, app.i18n.T("globals.messages.somethingWentWrong"), nil))
 	}
+	app.auth.ClearCSRFCookie(r)
 	// Add no-cache headers.
 	r.RequestCtx.Response.Header.Add("Cache-Control",
 		"no-store, no-cache, must-revalidate, post-check=0, pre-check=0")
 	r.RequestCtx.Response.Header.Add("Pragma", "no-cache")
 	r.RequestCtx.Response.Header.Add("Expires", "-1")
-	return r.RedirectURI("/", fasthttp.StatusFound, nil, "")
+	return r.SendEnvelope(true)
 }
