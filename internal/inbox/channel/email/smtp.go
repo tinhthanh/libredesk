@@ -33,6 +33,9 @@ func NewSmtpPool(configs []imodels.SMTPConfig, oauth *imodels.OAuthConfig) ([]*s
 	pools := make([]*smtppool.Pool, 0, len(configs))
 
 	for _, cfg := range configs {
+		if err := checkHost(cfg.Host, cfg.Port); err != nil {
+			return nil, fmt.Errorf("smtp host %s: %w", cfg.Host, err)
+		}
 		var auth smtp.Auth
 
 		// Check if OAuth authentication should be used

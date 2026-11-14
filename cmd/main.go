@@ -243,6 +243,7 @@ func main() {
 		status                      = initStatus(db, i18n)
 		priority                    = initPriority(db, i18n)
 		ssrfControl                 = initSSRFControl()
+		_                           = setEmailDialControl(ssrfControl)
 		auth                        = initAuth(oidc, rdb, i18n, ssrfControl)
 		template                    = initTemplate(db, fs, constants, i18n)
 		media                       = initMedia(db, i18n, settings)

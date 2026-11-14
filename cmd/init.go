@@ -1274,3 +1274,9 @@ func initRateLimit(redisClient *redis.Client, ip *clientip.Resolver) *ratelimit.
 
 	return limiter
 }
+
+// setEmailDialControl puts IMAP and SMTP connections behind the same SSRF guard as webhooks.
+func setEmailDialControl(c ssrf.Control) bool {
+	email.SetDialControl(c)
+	return true
+}

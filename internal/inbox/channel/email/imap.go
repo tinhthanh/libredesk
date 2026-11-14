@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"mime"
+	"net"
 	"strings"
 	"time"
 
@@ -76,13 +77,26 @@ func (e *Email) processMailbox(ctx context.Context, scanInboxSince time.Duration
 			InsecureSkipVerify: cfg.TLSSkipVerify,
 		},
 	}
+	// Dialed here, through the SSRF guard, rather than by imapclient.Dial*.
+	imapOptions.TLSConfig.ServerName = cfg.Host
 	switch cfg.TLSType {
 	case "none":
-		client, err = imapclient.DialInsecure(address, imapOptions)
+		var conn net.Conn
+		if conn, err = dialGuarded(address); err == nil {
+			client = imapclient.New(conn, imapOptions)
+		}
 	case "starttls":
-		client, err = imapclient.DialStartTLS(address, imapOptions)
+		var conn net.Conn
+		if conn, err = dialGuarded(address); err == nil {
+			client, err = imapclient.NewStartTLS(conn, imapOptions)
+		}
 	case "tls":
-		client, err = imapclient.DialTLS(address, imapOptions)
+		tlsCfg := imapOptions.TLSConfig.Clone()
+		tlsCfg.NextProtos = []string{"imap"}
+		var conn net.Conn
+		if conn, err = dialGuardedTLS(address, tlsCfg); err == nil {
+			client = imapclient.New(conn, imapOptions)
+		}
 	default:
 		return fmt.Errorf("unknown IMAP TLS type: %q", cfg.TLSType)
 	}
