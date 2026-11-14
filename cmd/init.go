@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/abhinavxd/libredesk/internal/clientip"
+	"github.com/abhinavxd/libredesk/internal/loginguard"
 	"log"
 	"os"
 	"path/filepath"
@@ -1219,10 +1221,19 @@ func getLogLevel(lvl string) logf.Level {
 	}
 }
 
+// initClientIP reads the proxies allowed to say who the client is (app.trusted_proxies).
+func initClientIP() *clientip.Resolver {
+	r, err := clientip.New(ko.Strings("app.trusted_proxies"))
+	if err != nil {
+		log.Fatalf("error reading app.trusted_proxies: %v", err)
+	}
+	return r
+}
+
 // initRateLimit initializes the rate limiter with default rules.
 // Defaults are used unless overridden in config.toml under [rate_limit.<name>].
-func initRateLimit(redisClient *redis.Client) *ratelimit.Limiter {
-	limiter := ratelimit.New(redisClient)
+func initRateLimit(redisClient *redis.Client, ip *clientip.Resolver) *ratelimit.Limiter {
+	limiter := ratelimit.New(redisClient, ip.IP)
 
 	defaults := []struct {
 		Name string
@@ -1263,4 +1274,22 @@ func initRateLimit(redisClient *redis.Client) *ratelimit.Limiter {
 	}
 
 	return limiter
+}
+
+// setEmailDialControl puts IMAP and SMTP connections behind the same SSRF guard as webhooks.
+func setEmailDialControl(c ssrf.Control) bool {
+	email.SetDialControl(c)
+	return true
+}
+
+// initLoginGuard limits sign-in failures and reset requests per account (app.login_failures,
+// app.login_failure_window, app.password_reset_limit, app.password_reset_window; zero takes
+// the defaults: 10 failures in 15m, 3 resets an hour).
+func initLoginGuard(rd *redis.Client) *loginguard.Guard {
+	return loginguard.New(rd, loginguard.Opts{
+		Failures:      ko.Int("app.login_failures"),
+		FailureWindow: ko.Duration("app.login_failure_window"),
+		Resets:        ko.Int("app.password_reset_limit"),
+		ResetWindow:   ko.Duration("app.password_reset_window"),
+	})
 }

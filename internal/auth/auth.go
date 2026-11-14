@@ -31,10 +31,18 @@ import (
 // ErrOIDCInvalidClient reports the provider rejecting the client credentials, typically an expired or wrong client secret.
 var ErrOIDCInvalidClient = errors.New("oidc provider rejected client credentials")
 
+// EmailTrusted says whether the provider's email can name an agent: not when it says the
+// address is unverified (anyone could have typed it there). Providers that don't send the
+// claim at all are trusted as before.
+func (c OIDCclaim) EmailTrusted() bool {
+	return c.EmailVerified == nil || *c.EmailVerified
+}
+
 // OIDCclaim holds OIDC token claims data
 type OIDCclaim struct {
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
+	Email string `json:"email"`
+	// EmailVerified is nil when the provider doesn't send the claim.
+	EmailVerified *bool  `json:"email_verified"`
 	Sub           string `json:"sub"`
 	Picture       string `json:"picture"`
 }
@@ -251,7 +259,7 @@ func (a *Auth) ExchangeOIDCToken(ctx context.Context, providerID int, code strin
 		a.logger.Error("error parsing claims from oidc id_token", "provider_id", providerID, "error", err)
 		return "", OIDCclaim{}, errors.New("error getting user from OIDC")
 	}
-	a.logger.Debug("oidc token exchange successful", "provider_id", providerID, "email", claims.Email, "email_verified", claims.EmailVerified)
+	a.logger.Debug("oidc token exchange successful", "provider_id", providerID, "email", claims.Email, "email_verified", claims.EmailVerified != nil && *claims.EmailVerified)
 	return rawIDTk, claims, nil
 }
 
@@ -271,6 +279,7 @@ func (a *Auth) SaveSession(user amodels.User, r *fastglue.Request) error {
 		"email":      user.Email,
 		"first_name": user.FirstName,
 		"last_name":  user.LastName,
+		"issued_at":  time.Now().UnixMilli(),
 	}); err != nil {
 		a.logger.Error("error setting login session", "error", err)
 		return err
@@ -317,25 +326,45 @@ func (a *Auth) GetSessionValue(r *fastglue.Request, key string) (any, error) {
 
 // SetCSRFCookie sets the CSRF token in the response cookie if not already set.
 func (a *Auth) SetCSRFCookie(r *fastglue.Request) error {
+	if r.RequestCtx.Request.Header.Cookie("csrf_token") != nil {
+		return nil
+	}
+	return a.RotateCSRFCookie(r)
+}
+
+// RotateCSRFCookie sets a new CSRF token, whatever the browser had: at sign-in, so a token
+// planted before (by a sibling subdomain, say) is not the one the session uses.
+func (a *Auth) RotateCSRFCookie(r *fastglue.Request) error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	cookie := r.RequestCtx.Request.Header.Cookie("csrf_token")
-	if cookie == nil {
-		token, err := generateCSRFToken()
-		if err != nil {
-			return err
-		}
-		var csrfCookie fasthttp.Cookie
-		csrfCookie.SetKey("csrf_token")
-		csrfCookie.SetValue(token)
-		csrfCookie.SetPath("/")
-		csrfCookie.SetSecure(a.cfg.SecureCookies)
-		csrfCookie.SetHTTPOnly(false)
-		r.RequestCtx.Response.Header.SetCookie(&csrfCookie)
-		return nil
+	token, err := generateCSRFToken()
+	if err != nil {
+		return err
 	}
+	r.RequestCtx.Response.Header.SetCookie(a.csrfCookie(token, false))
 	return nil
+}
+
+// ClearCSRFCookie removes the CSRF token, at sign-out.
+func (a *Auth) ClearCSRFCookie(r *fastglue.Request) {
+	r.RequestCtx.Response.Header.SetCookie(a.csrfCookie("", true))
+}
+
+// csrfCookie is the CSRF token cookie: readable by the app's script (it sends it back as
+// X-CSRFTOKEN), sent only on same-site requests.
+func (a *Auth) csrfCookie(token string, expire bool) *fasthttp.Cookie {
+	c := fasthttp.AcquireCookie()
+	c.SetKey("csrf_token")
+	c.SetValue(token)
+	c.SetPath("/")
+	c.SetSecure(a.cfg.SecureCookies)
+	c.SetHTTPOnly(false)
+	c.SetSameSite(fasthttp.CookieSameSiteStrictMode)
+	if expire {
+		c.SetExpire(fasthttp.CookieExpireDelete)
+	}
+	return c
 }
 
 // ValidateSession validates the session and returns the user.
@@ -351,7 +380,7 @@ func (a *Auth) ValidateSession(r *fastglue.Request) (models.User, error) {
 		return models.User{}, err
 	}
 
-	sessVals, err := sess.GetMulti("id", "email", "first_name", "last_name")
+	sessVals, err := sess.GetMulti("id", "email", "first_name", "last_name", "issued_at")
 	if err != nil {
 		a.logger.Error("error fetching session variables", "error", err)
 		return models.User{}, err
@@ -362,7 +391,15 @@ func (a *Auth) ValidateSession(r *fastglue.Request) (models.User, error) {
 		email, _     = sess.String(sessVals["email"], nil)
 		firstName, _ = sess.String(sessVals["first_name"], nil)
 		lastName, _  = sess.String(sessVals["last_name"], nil)
+		issuedAt, _  = sess.Int64(sessVals["issued_at"], nil)
 	)
+
+	// A session from before the user's sessions were ended (password or role changed,
+	// disabled) is over.
+	if a.sessionEnded(r.RequestCtx, userID, issuedAt) {
+		_ = sess.Destroy()
+		return models.User{}, simplesessions.ErrInvalidSession
+	}
 
 	return models.User{
 		ID:        userID,
@@ -469,4 +506,34 @@ func simpleSessSetCookieCB(c *http.Cookie, w interface{}) error {
 
 	req.RequestCtx.Response.Header.SetCookie(fc)
 	return nil
+}
+
+// sessionsAfterKey holds when a user's sessions were last ended (unix milliseconds): sessions
+// issued before it are no longer valid.
+func sessionsAfterKey(userID int) string { return fmt.Sprintf("auth:user:%d:sessions_after", userID) }
+
+// endedSessionTTL outlives any session, so the mark is there for as long as one could be.
+const endedSessionTTL = 31 * 24 * time.Hour
+
+// EndUserSessions ends every session the user has now (the one making the request included).
+// Call it when their password, roles or enabled state change.
+func (a *Auth) EndUserSessions(ctx context.Context, userID int) error {
+	if a.rd == nil || userID <= 0 {
+		return nil
+	}
+	// One millisecond past now, so a session issued in this same millisecond is over too.
+	return a.rd.Set(ctx, sessionsAfterKey(userID), time.Now().UnixMilli()+1, endedSessionTTL).Err()
+}
+
+// sessionEnded says whether a session issued at issuedAt (unix ms; 0 for one from before this
+// was recorded) has been ended. Redis unreachable keeps the session (fail open, as before).
+func (a *Auth) sessionEnded(ctx context.Context, userID int, issuedAt int64) bool {
+	if a.rd == nil || userID <= 0 {
+		return false
+	}
+	after, err := a.rd.Get(ctx, sessionsAfterKey(userID)).Int64()
+	if err != nil {
+		return false
+	}
+	return issuedAt < after
 }

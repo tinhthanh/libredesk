@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/abhinavxd/libredesk/internal/clientip"
+	"github.com/abhinavxd/libredesk/internal/loginguard"
 	"hash/fnv"
 	"log"
 	"os"
@@ -131,10 +133,14 @@ type App struct {
 	webhook          *webhook.Manager
 	contextLink      *contextlink.Manager
 	rateLimit        *ratelimit.Limiter
-	redis            *redis.Client
-	fc               *fastcache.FastCache
-	importer         *importer.Importer
-	wsHub            *ws.Hub
+	clientIP         *clientip.Resolver
+	loginGuard       *loginguard.Guard
+	// systemLoginViaProxy: whether the System user may sign in through the proxy (app.system_login_via_proxy).
+	systemLoginViaProxy bool
+	redis               *redis.Client
+	fc                  *fastcache.FastCache
+	importer            *importer.Importer
+	wsHub               *ws.Hub
 
 	// Global state that stores data on an available app update.
 	update *AppUpdate
@@ -161,6 +167,7 @@ func main() {
 
 	// Load the config files into Koanf.
 	initConfig(ko)
+	wsAnyLocalhost.Store(ko.String("app.env") == "dev")
 
 	// Validate custom static directory if provided.
 	if dir := getCustomStaticDir(); dir != "" {
@@ -238,6 +245,7 @@ func main() {
 		status                      = initStatus(db, i18n)
 		priority                    = initPriority(db, i18n)
 		ssrfControl                 = initSSRFControl()
+		_                           = setEmailDialControl(ssrfControl)
 		auth                        = initAuth(oidc, rdb, i18n, ssrfControl)
 		template                    = initTemplate(db, fs, constants, i18n)
 		media                       = initMedia(db, i18n, settings)
@@ -257,7 +265,9 @@ func main() {
 		aiAgent                     = initAIAgent(db, i18n, ai, conversation, media, settings, user, notifier, rdb)
 		helpCenter                  = initHelpCenter(db, i18n, ai)
 		autoassigner                = initAutoAssigner(team, user, conversation)
-		rateLimiter                 = initRateLimit(rdb)
+		clientIP                    = initClientIP()
+		rateLimiter                 = initRateLimit(rdb, clientIP)
+		loginGuard                  = initLoginGuard(rdb)
 	)
 
 	wsHub.SetConversationStore(conversation)
@@ -289,47 +299,50 @@ func main() {
 	go ai.Run(ctx)
 
 	var app = &App{
-		ctx:              ctx,
-		lo:               lo,
-		fs:               fs,
-		sla:              sla,
-		oidc:             oidc,
-		i18n:             i18n,
-		auth:             auth,
-		media:            media,
-		setting:          settings,
-		inbox:            inbox,
-		user:             user,
-		team:             team,
-		csat:             csat,
-		status:           status,
-		priority:         priority,
-		tmpl:             template,
-		notifier:         notifier,
-		consts:           atomic.Value{},
-		conversation:     conversation,
-		automation:       automation,
-		businessHours:    businessHours,
-		activityLog:      initActivityLog(db, i18n),
-		customAttribute:  initCustomAttribute(db, i18n),
-		authz:            initAuthz(i18n),
-		view:             initView(db, i18n),
-		report:           initReport(db, i18n),
-		search:           initSearch(db, i18n),
-		role:             initRole(db, i18n),
-		tag:              initTag(db, i18n),
-		macro:            initMacro(db, i18n),
-		ai:               ai,
-		aiAgent:          aiAgent,
-		helpcenter:       helpCenter,
-		importer:         initImporter(i18n),
-		webhook:          webhook,
-		contextLink:      initContextLink(db, i18n),
-		rateLimit:        rateLimiter,
-		redis:            rdb,
-		fc:               initFastCache(rdb),
-		userNotification: userNotification,
-		wsHub:            wsHub,
+		ctx:                 ctx,
+		lo:                  lo,
+		fs:                  fs,
+		sla:                 sla,
+		oidc:                oidc,
+		i18n:                i18n,
+		auth:                auth,
+		media:               media,
+		setting:             settings,
+		inbox:               inbox,
+		user:                user,
+		team:                team,
+		csat:                csat,
+		status:              status,
+		priority:            priority,
+		tmpl:                template,
+		notifier:            notifier,
+		consts:              atomic.Value{},
+		conversation:        conversation,
+		automation:          automation,
+		businessHours:       businessHours,
+		activityLog:         initActivityLog(db, i18n),
+		customAttribute:     initCustomAttribute(db, i18n),
+		authz:               initAuthz(i18n),
+		view:                initView(db, i18n),
+		report:              initReport(db, i18n),
+		search:              initSearch(db, i18n),
+		role:                initRole(db, i18n),
+		tag:                 initTag(db, i18n),
+		macro:               initMacro(db, i18n),
+		ai:                  ai,
+		aiAgent:             aiAgent,
+		helpcenter:          helpCenter,
+		importer:            initImporter(i18n),
+		webhook:             webhook,
+		contextLink:         initContextLink(db, i18n),
+		rateLimit:           rateLimiter,
+		clientIP:            clientIP,
+		loginGuard:          loginGuard,
+		systemLoginViaProxy: !ko.Exists("app.system_login_via_proxy") || ko.Bool("app.system_login_via_proxy"),
+		redis:               rdb,
+		fc:                  initFastCache(rdb),
+		userNotification:    userNotification,
+		wsHub:               wsHub,
 	}
 	app.consts.Store(constants)
 	helpCenterCacheOpts.Logger = log.New(helpCenterCacheLogWriter{lo: app.lo}, "", 0)

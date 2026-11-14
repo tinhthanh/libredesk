@@ -24,7 +24,6 @@ import (
 	imodels "github.com/abhinavxd/libredesk/internal/inbox/models"
 	"github.com/abhinavxd/libredesk/internal/stringutil"
 	umodels "github.com/abhinavxd/libredesk/internal/user/models"
-	realip "github.com/ferluci/fast-realip"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/valyala/fasthttp"
 	"github.com/volatiletech/null/v9"
@@ -180,7 +179,7 @@ func handleChatInit(r *fastglue.Request) error {
 	var (
 		app               = r.Context.(*App)
 		req               = chatInitReq{}
-		clientIP          = realip.FromRequest(r.RequestCtx)
+		clientIP          = app.clientIP.IP(r.RequestCtx)
 		userAgent         = string(r.RequestCtx.Request.Header.Peek("User-Agent"))
 		contactID         int
 		isVisitor         bool

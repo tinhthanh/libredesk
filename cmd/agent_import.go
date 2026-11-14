@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/csv"
 	"fmt"
+	rmodels "github.com/abhinavxd/libredesk/internal/role/models"
 	"strings"
 
 	"github.com/abhinavxd/libredesk/internal/envelope"
@@ -39,8 +40,14 @@ func handleImportAgents(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("importer.csvMustContainHeadersAndData"), nil, envelope.InputError)
 	}
 
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	callerAdmin := hasRole(roles, rmodels.RoleAdmin)
+
 	err = app.importer.Submit("agents", func() error {
-		return processAgentImport(app, records)
+		return processAgentImport(app, records, callerAdmin)
 	})
 
 	if err != nil {
@@ -60,7 +67,7 @@ func handleGetAgentImportStatus(r *fastglue.Request) error {
 	return r.SendEnvelope(status)
 }
 
-func processAgentImport(app *App, records [][]string) error {
+func processAgentImport(app *App, records [][]string, callerAdmin bool) error {
 	// Parse headers
 	headerMap := make(map[string]int)
 	for i, h := range records[0] {
@@ -153,6 +160,12 @@ func processAgentImport(app *App, records [][]string) error {
 			app.importer.AddLog("agents", app.i18n.Ts("importer.roleRequired",
 				"row", rowStr,
 				"email", email))
+			continue
+		}
+
+		if key := agentChangeRefusal(callerAdmin, false, nil, roles); key != "" {
+			app.importer.UpdateCounts("agents", 0, 0, 1)
+			app.importer.AddLog("agents", rowStr+": "+app.i18n.T(key))
 			continue
 		}
 

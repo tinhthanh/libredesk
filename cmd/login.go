@@ -1,9 +1,11 @@
 package main
 
 import (
+	"strings"
+
 	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
 	"github.com/abhinavxd/libredesk/internal/envelope"
-	realip "github.com/ferluci/fast-realip"
+	umodels "github.com/abhinavxd/libredesk/internal/user/models"
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
 )
@@ -17,7 +19,7 @@ type loginRequest struct {
 func handleLogin(r *fastglue.Request) error {
 	var (
 		app      = r.Context.(*App)
-		ip       = realip.FromRequest(r.RequestCtx)
+		ip       = app.clientIP.IP(r.RequestCtx)
 		loginReq loginRequest
 	)
 
@@ -30,9 +32,24 @@ func handleLogin(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("globals.messages.badRequest"), nil, envelope.InputError)
 	}
 
+	// Too many failures for this email (known or not): refused until the window ends, the
+	// same answer whatever the password, so guessing stops here.
+	if app.loginGuard.Locked(r.RequestCtx, loginReq.Email) {
+		return r.SendErrorEnvelope(fasthttp.StatusTooManyRequests, app.i18n.T("globals.messages.tooManyRequests"), nil, envelope.GeneralError)
+	}
+
+	// The System user may be kept from signing in through the reverse proxy (from the Internet):
+	// in-cluster callers (gateway, omi-admin) reach Libredesk directly and keep working.
+	if systemLoginRefused(loginReq.Email, app.systemLoginViaProxy, app.clientIP.ViaProxy(r.RequestCtx)) {
+		app.lo.Warn("refused System sign-in through the proxy", "ip", ip)
+		app.loginGuard.Failed(r.RequestCtx, loginReq.Email)
+		return sendErrorEnvelope(r, app.user.RefuseLogin([]byte(loginReq.Password)))
+	}
+
 	// Verify email and password.
 	user, err := app.user.VerifyPassword(loginReq.Email, []byte(loginReq.Password))
 	if err != nil {
+		app.loginGuard.Failed(r.RequestCtx, loginReq.Email)
 		return sendErrorEnvelope(r, err)
 	}
 
@@ -50,8 +67,8 @@ func handleLogin(r *fastglue.Request) error {
 		app.lo.Error("error saving session", "error", err)
 		return sendErrorEnvelope(r, envelope.NewError(envelope.GeneralError, app.i18n.T("globals.messages.somethingWentWrong"), nil))
 	}
-	// Set CSRF cookie if not already set.
-	if err := app.auth.SetCSRFCookie(r); err != nil {
+	// A new CSRF token for the new session.
+	if err := app.auth.RotateCSRFCookie(r); err != nil {
 		app.lo.Error("error setting csrf cookie", "error", err)
 		return sendErrorEnvelope(r, envelope.NewError(envelope.GeneralError, app.i18n.T("globals.messages.somethingWentWrong"), nil))
 	}
@@ -62,6 +79,7 @@ func handleLogin(r *fastglue.Request) error {
 	}
 
 	app.user.InvalidateAgentCache(user.ID)
+	app.loginGuard.Succeeded(r.RequestCtx, loginReq.Email)
 
 	// Insert activity log.
 	if err := app.activityLog.Login(user.ID, user.Email.String, ip); err != nil {
@@ -71,12 +89,24 @@ func handleLogin(r *fastglue.Request) error {
 	return r.SendEnvelope(user)
 }
 
-// handleLogout logs out the user and redirects to the dashboard.
+// systemLoginRefused says whether a sign-in as the System user must be refused: when
+// app.system_login_via_proxy is off and the request came through a proxy.
+func systemLoginRefused(email string, allowViaProxy, viaProxy bool) bool {
+	return !allowViaProxy && viaProxy && strings.EqualFold(strings.TrimSpace(email), umodels.SystemUserEmail)
+}
+
+// handleLogoutPage answers the old GET /logout link: a GET must change nothing (any site could
+// send one), so it only goes to the app, where signing out is a POST.
+func handleLogoutPage(r *fastglue.Request) error {
+	return r.RedirectURI("/", fasthttp.StatusFound, nil, "")
+}
+
+// handleLogout (POST /api/v1/auth/logout) ends the session and clears the CSRF token.
 func handleLogout(r *fastglue.Request) error {
 	var (
 		app   = r.Context.(*App)
 		auser = r.RequestCtx.UserValue("user").(amodels.User)
-		ip    = realip.FromRequest(r.RequestCtx)
+		ip    = app.clientIP.IP(r.RequestCtx)
 	)
 
 	// Insert activity log.
@@ -88,10 +118,11 @@ func handleLogout(r *fastglue.Request) error {
 		app.lo.Error("error destroying session", "error", err)
 		return sendErrorEnvelope(r, envelope.NewError(envelope.GeneralError, app.i18n.T("globals.messages.somethingWentWrong"), nil))
 	}
+	app.auth.ClearCSRFCookie(r)
 	// Add no-cache headers.
 	r.RequestCtx.Response.Header.Add("Cache-Control",
 		"no-store, no-cache, must-revalidate, post-check=0, pre-check=0")
 	r.RequestCtx.Response.Header.Add("Pragma", "no-cache")
 	r.RequestCtx.Response.Header.Add("Expires", "-1")
-	return r.RedirectURI("/", fasthttp.StatusFound, nil, "")
+	return r.SendEnvelope(true)
 }

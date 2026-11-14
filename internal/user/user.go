@@ -147,7 +147,8 @@ func (u *Manager) VerifyPassword(email string, password []byte) (models.User, er
 	var user models.User
 	if err := u.q.GetUser.Get(&user, 0, email, pq.Array([]string{models.UserTypeAgent})); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return user, envelope.NewError(envelope.InputError, u.i18n.T("user.invalidEmailPassword"), nil)
+			// The same bcrypt work as a wrong password, so timing doesn't tell which emails exist.
+			return user, u.RefuseLogin(password)
 		}
 		u.lo.Error("error fetching user from db", "error", err)
 		return user, envelope.NewError(envelope.GeneralError, u.i18n.T("globals.messages.somethingWentWrong"), nil)
@@ -156,6 +157,16 @@ func (u *Manager) VerifyPassword(email string, password []byte) (models.User, er
 		return user, envelope.NewError(envelope.InputError, u.i18n.T("user.invalidEmailPassword"), nil)
 	}
 	return user, nil
+}
+
+// dummyPasswordHash is checked against when there is no account to check, so a refused or
+// unknown login costs the same bcrypt work as a wrong password and the timing tells nothing.
+var dummyPasswordHash, _ = bcrypt.GenerateFromPassword([]byte("libredesk-dummy-password"), bcrypt.DefaultCost)
+
+// RefuseLogin answers a login that must not go through exactly as a wrong password does.
+func (u *Manager) RefuseLogin(password []byte) error {
+	_ = bcrypt.CompareHashAndPassword(dummyPasswordHash, password)
+	return envelope.NewError(envelope.InputError, u.i18n.T("user.invalidEmailPassword"), nil)
 }
 
 // GetAllUsers returns a list of all users.
@@ -322,11 +333,18 @@ func (u *Manager) SetResetPasswordToken(id int) (string, error) {
 		u.lo.Error("error generating reset password token", "error", err)
 		return "", envelope.NewError(envelope.GeneralError, u.i18n.T("globals.messages.somethingWentWrong"), nil)
 	}
-	if _, err := u.q.SetResetPasswordToken.Exec(id, token); err != nil {
+	if _, err := u.q.SetResetPasswordToken.Exec(id, hashResetToken(token)); err != nil {
 		u.lo.Error("error setting reset password token", "error", err)
 		return "", envelope.NewError(envelope.GeneralError, u.i18n.T("globals.messages.somethingWentWrong"), nil)
 	}
 	return token, nil
+}
+
+// hashResetToken is what is kept of a reset token: its SHA-256, so the users table read is no
+// way into an account. Tokens are random (32 characters), so no salt is needed.
+func hashResetToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
 
 // ResetPassword sets a password for a given user's reset password token and returns the user ID.
@@ -340,7 +358,7 @@ func (u *Manager) ResetPassword(token, password string) (int, error) {
 		return 0, envelope.NewError(envelope.GeneralError, u.i18n.T("globals.messages.somethingWentWrong"), nil)
 	}
 	var id int
-	if err := u.q.SetPassword.Get(&id, passwordHash, token); err != nil {
+	if err := u.q.SetPassword.Get(&id, passwordHash, hashResetToken(token)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, envelope.NewError(envelope.InputError, u.i18n.T("user.resetPasswordTokenExpired"), nil)
 		}

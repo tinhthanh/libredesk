@@ -120,8 +120,14 @@ func handleMediaUpload(r *fastglue.Request) error {
 		}
 	}()
 
+	// Who uploaded it: until it is attached to a message, only they may attach it.
+	var uploaderID int
+	if u, ok := r.RequestCtx.UserValue("user").(amodels.User); ok {
+		uploaderID = u.ID
+	}
+
 	// Generate and upload thumbnail and store image dimensions in the media meta.
-	var meta = []byte("{}")
+	var meta, _ = json.Marshal(map[string]interface{}{"uploader_id": uploaderID})
 	if slices.Contains(image.Exts, srcExt) && image.IsImageByContent(file) {
 		file.Seek(0, 0)
 		thumbFile, err := image.CreateThumb(image.DefThumbSize, file)
@@ -143,8 +149,9 @@ func handleMediaUpload(r *fastglue.Request) error {
 			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, app.i18n.T("globals.messages.errorUploadingFile"), nil, envelope.GeneralError)
 		}
 		meta, _ = json.Marshal(map[string]interface{}{
-			"width":  width,
-			"height": height,
+			"width":       width,
+			"height":      height,
+			"uploader_id": uploaderID,
 		})
 	}
 
@@ -289,8 +296,10 @@ func bytesToMegabytes(bytes int64) float64 {
 	return float64(bytes) / 1024 / 1024
 }
 
-// getUnassociatedMedia fetches media by IDs, skipping any already associated with a model.
-func getUnassociatedMedia(app *App, ids []int) ([]mmodels.Media, error) {
+// getUnassociatedMedia fetches media by IDs, skipping any already associated with a model and
+// any another agent uploaded (IDs are sequential: anyone could name a file just uploaded by a
+// colleague, attach it to their own message, then read it).
+func getUnassociatedMedia(app *App, ids []int, agentID int) ([]mmodels.Media, error) {
 	all, err := app.media.GetMany(ids)
 	if err != nil {
 		return nil, err
@@ -299,6 +308,10 @@ func getUnassociatedMedia(app *App, ids []int) ([]mmodels.Media, error) {
 	for _, m := range all {
 		if m.ModelID.Int > 0 {
 			app.lo.Warn("attachment already associated with another model, skipping", "media_id", m.ID, "model", m.Model.String, "model_id", m.ModelID.Int)
+			continue
+		}
+		if !mediaAttachableBy(m.Meta, agentID) {
+			app.lo.Warn("attachment uploaded by another agent, skipping", "media_id", m.ID, "agent_id", agentID)
 			continue
 		}
 		out = append(out, m)
@@ -320,4 +333,16 @@ func cacheVisibility(private bool) string {
 		return "private"
 	}
 	return "public"
+}
+
+// mediaAttachableBy says whether the agent may attach media with this meta: it records no
+// uploader (from before this was recorded, or not uploaded by an agent), or it is theirs.
+func mediaAttachableBy(meta []byte, agentID int) bool {
+	var m struct {
+		UploaderID *int `json:"uploader_id"`
+	}
+	if len(meta) == 0 || json.Unmarshal(meta, &m) != nil || m.UploaderID == nil || *m.UploaderID == 0 {
+		return true
+	}
+	return *m.UploaderID == agentID
 }

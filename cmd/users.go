@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	rmodels "github.com/abhinavxd/libredesk/internal/role/models"
 	"mime/multipart"
 	"path/filepath"
 	"slices"
@@ -16,7 +17,6 @@ import (
 	"github.com/abhinavxd/libredesk/internal/stringutil"
 	tmpl "github.com/abhinavxd/libredesk/internal/template"
 	"github.com/abhinavxd/libredesk/internal/user/models"
-	realip "github.com/ferluci/fast-realip"
 	"github.com/valyala/fasthttp"
 	"github.com/volatiletech/null/v9"
 	"github.com/zerodha/fastglue"
@@ -94,7 +94,7 @@ func handleUpdateAgentAvailability(r *fastglue.Request) error {
 	var (
 		app      = r.Context.(*App)
 		auser    = r.RequestCtx.UserValue("user").(amodels.User)
-		ip       = realip.FromRequest(r.RequestCtx)
+		ip       = app.clientIP.IP(r.RequestCtx)
 		availReq availabilityRequest
 	)
 
@@ -201,6 +201,13 @@ func handleCreateAgent(r *fastglue.Request) error {
 		return sendErrorEnvelope(r, err)
 	}
 
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), false, nil, req.Roles); key != "" {
+		return refuse(app, r, key)
+	}
 	agent, err := app.user.CreateAgent(req.FirstName, req.LastName, req.Email, req.Roles)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
@@ -252,7 +259,7 @@ func handleUpdateAgent(r *fastglue.Request) error {
 		app   = r.Context.(*App)
 		req   = agentReq{}
 		auser = r.RequestCtx.UserValue("user").(amodels.User)
-		ip    = realip.FromRequest(r.RequestCtx)
+		ip    = app.clientIP.IP(r.RequestCtx)
 		id, _ = strconv.Atoi(r.RequestCtx.UserValue("id").(string))
 	)
 	if id == 0 {
@@ -275,6 +282,13 @@ func handleUpdateAgent(r *fastglue.Request) error {
 	if agent.Type != models.UserTypeAgent {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, app.i18n.Ts("globals.messages.notFound", "name", app.i18n.T("globals.terms.agent")), nil, envelope.NotFoundError)
 	}
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), agent.IsSystemUser(), agent.Roles, req.Roles); key != "" {
+		return refuse(app, r, key)
+	}
 	oldAvailabilityStatus := agent.AvailabilityStatus
 
 	// Update agent with individual fields
@@ -284,6 +298,13 @@ func handleUpdateAgent(r *fastglue.Request) error {
 
 	app.user.InvalidateAgentCache(id)
 	app.wsHub.KickUser(id)
+
+	// A new password, other roles or a disabled account end the sessions the agent had.
+	if sessionsMustEnd(req.NewPassword != "", agent.Roles, req.Roles, agent.Enabled, req.Enabled) {
+		if err := app.auth.EndUserSessions(r.RequestCtx, id); err != nil {
+			app.lo.Error("error ending agent sessions", "id", id, "error", err)
+		}
+	}
 
 	// Create activity log if user availability status changed.
 	if oldAvailabilityStatus != req.AvailabilityStatus {
@@ -329,6 +350,18 @@ func handleDeleteAgent(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("user.userCannotDeleteSelf"), nil, envelope.InputError)
 	}
 
+	target, err := app.user.GetAgent(id, "")
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), target.IsSystemUser(), target.Roles, nil); key != "" {
+		return refuse(app, r, key)
+	}
+
 	// Soft delete user.
 	if err = app.user.SoftDeleteAgent(id); err != nil {
 		return sendErrorEnvelope(r, err)
@@ -336,6 +369,9 @@ func handleDeleteAgent(r *fastglue.Request) error {
 
 	defer app.wsHub.KickUser(id)
 	defer app.user.InvalidateAgentCache(id)
+	if err := app.auth.EndUserSessions(r.RequestCtx, id); err != nil {
+		app.lo.Error("error ending agent sessions", "id", id, "error", err)
+	}
 
 	// Unassign all open conversations assigned to the user.
 	if err := app.conversation.UnassignOpen(id); err != nil {
@@ -410,26 +446,35 @@ func handleResetPassword(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.empty", "name", "`email`"), nil, envelope.InputError)
 	}
 
-	agent, err := app.user.GetAgent(0, resetReq.Email)
-	if err != nil {
-		// Send 200 even if user not found, to prevent email enumeration.
-		return r.SendEnvelope(true)
+	// The same answer, at once, whether the account exists: the lookup, the token and the email
+	// happen after, so neither the reply nor its timing says which emails have accounts.
+	// At most a few emails an hour to one address (counted for unknown addresses too), so an
+	// inbox can't be flooded; the answer is the same either way.
+	if app.loginGuard.AllowReset(r.RequestCtx, resetReq.Email) {
+		go sendPasswordReset(app, resetReq.Email)
 	}
 
+	return r.SendEnvelope(true)
+}
+
+// sendPasswordReset makes a reset token for the agent with this email, if there is one, and
+// mails it; failures are logged, never told to the requester.
+func sendPasswordReset(app *App, email string) {
+	agent, err := app.user.GetAgent(0, email)
+	if err != nil {
+		return
+	}
 	token, err := app.user.SetResetPasswordToken(agent.ID)
 	if err != nil {
-		return sendErrorEnvelope(r, err)
+		return
 	}
-
-	// Send email.
 	content, err := app.tmpl.RenderInMemoryTemplate(tmpl.TmplResetPassword, map[string]string{
 		"ResetToken": token,
 	})
 	if err != nil {
 		app.lo.Error("error rendering template", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, app.i18n.T("globals.messages.errorSendingPasswordResetEmail"), nil, envelope.GeneralError)
+		return
 	}
-
 	if err := app.notifier.Send(notifier.Message{
 		RecipientEmails: []string{agent.Email.String},
 		Subject:         "Reset Password",
@@ -437,10 +482,7 @@ func handleResetPassword(r *fastglue.Request) error {
 		Provider:        notifier.ProviderEmail,
 	}); err != nil {
 		app.lo.Error("error sending password reset email", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, app.i18n.T("globals.messages.errorSendingPasswordResetEmail"), nil, envelope.GeneralError)
 	}
-
-	return r.SendEnvelope(true)
 }
 
 // handleSetPassword resets the password with the provided token.
@@ -466,6 +508,9 @@ func handleSetPassword(r *fastglue.Request) error {
 	id, err := app.user.ResetPassword(req.Token, req.Password)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
+	}
+	if err := app.auth.EndUserSessions(r.RequestCtx, id); err != nil {
+		app.lo.Error("error ending agent sessions", "id", id, "error", err)
 	}
 	app.user.InvalidateAgentCache(id)
 	app.wsHub.KickUser(id)
@@ -568,6 +613,13 @@ func handleGenerateAPIKey(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, app.i18n.Ts("globals.messages.notFound", "name", app.i18n.T("globals.terms.agent")), nil, envelope.NotFoundError)
 	}
 
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), user.IsSystemUser(), user.Roles, nil); key != "" {
+		return refuse(app, r, key)
+	}
 	// Generate API key and secret
 	apiKey, apiSecret, err := app.user.GenerateAPIKey(user.ID)
 	if err != nil {
@@ -606,6 +658,13 @@ func handleRevokeAPIKey(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, app.i18n.Ts("globals.messages.notFound", "name", app.i18n.T("globals.terms.agent")), nil, envelope.NotFoundError)
 	}
 
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), user.IsSystemUser(), user.Roles, nil); key != "" {
+		return refuse(app, r, key)
+	}
 	// Revoke API key
 	if err := app.user.RevokeAPIKey(id); err != nil {
 		return sendErrorEnvelope(r, err)

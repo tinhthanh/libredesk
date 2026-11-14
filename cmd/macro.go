@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	authzmodels "github.com/abhinavxd/libredesk/internal/authz/models"
 	"slices"
 	"strconv"
 
@@ -15,10 +16,25 @@ import (
 
 // handleGetMacros returns all macros.
 func handleGetMacros(r *fastglue.Request) error {
-	var app = r.Context.(*App)
-	macros, err := app.macro.GetAll()
+	var (
+		app   = r.Context.(*App)
+		auser = r.RequestCtx.UserValue("user").(amodels.User)
+	)
+	all, err := app.macro.GetAll()
 	if err != nil {
 		return sendErrorEnvelope(r, err)
+	}
+	agent, err := app.user.GetAgentCachedOrLoad(auser.ID)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	// Those who manage macros see every one; others the macros visible to them.
+	manage := slices.Contains(agent.Permissions, authzmodels.PermMacrosManage)
+	macros := all[:0]
+	for _, m := range all {
+		if manage || macroVisibleTo(m, agent.ID, agent.Teams.IDs()) {
+			macros = append(macros, m)
+		}
 	}
 	for i, m := range macros {
 		var actions []autoModels.RuleAction
@@ -307,4 +323,18 @@ func isMacroActionAllowed(action string) bool {
 	default:
 		return false
 	}
+}
+
+// macroVisibleTo says whether an agent (by id and teams) may see a macro: one for all, one of
+// their team, or their own.
+func macroVisibleTo(m models.Macro, agentID int, teamIDs []int) bool {
+	switch m.Visibility {
+	case "all":
+		return true
+	case "team":
+		return m.TeamID != nil && slices.Contains(teamIDs, *m.TeamID)
+	case "user":
+		return m.UserID != nil && *m.UserID == agentID
+	}
+	return false
 }
