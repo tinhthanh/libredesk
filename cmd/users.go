@@ -446,26 +446,31 @@ func handleResetPassword(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.Ts("globals.messages.empty", "name", "`email`"), nil, envelope.InputError)
 	}
 
-	agent, err := app.user.GetAgent(0, resetReq.Email)
-	if err != nil {
-		// Send 200 even if user not found, to prevent email enumeration.
-		return r.SendEnvelope(true)
-	}
+	// The same answer, at once, whether the account exists: the lookup, the token and the email
+	// happen after, so neither the reply nor its timing says which emails have accounts.
+	go sendPasswordReset(app, resetReq.Email)
 
+	return r.SendEnvelope(true)
+}
+
+// sendPasswordReset makes a reset token for the agent with this email, if there is one, and
+// mails it; failures are logged, never told to the requester.
+func sendPasswordReset(app *App, email string) {
+	agent, err := app.user.GetAgent(0, email)
+	if err != nil {
+		return
+	}
 	token, err := app.user.SetResetPasswordToken(agent.ID)
 	if err != nil {
-		return sendErrorEnvelope(r, err)
+		return
 	}
-
-	// Send email.
 	content, err := app.tmpl.RenderInMemoryTemplate(tmpl.TmplResetPassword, map[string]string{
 		"ResetToken": token,
 	})
 	if err != nil {
 		app.lo.Error("error rendering template", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, app.i18n.T("globals.messages.errorSendingPasswordResetEmail"), nil, envelope.GeneralError)
+		return
 	}
-
 	if err := app.notifier.Send(notifier.Message{
 		RecipientEmails: []string{agent.Email.String},
 		Subject:         "Reset Password",
@@ -473,10 +478,7 @@ func handleResetPassword(r *fastglue.Request) error {
 		Provider:        notifier.ProviderEmail,
 	}); err != nil {
 		app.lo.Error("error sending password reset email", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, app.i18n.T("globals.messages.errorSendingPasswordResetEmail"), nil, envelope.GeneralError)
 	}
-
-	return r.SendEnvelope(true)
 }
 
 // handleSetPassword resets the password with the provided token.
