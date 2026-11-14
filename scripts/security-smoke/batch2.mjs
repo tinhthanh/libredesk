@@ -14,7 +14,9 @@
 //   5. ?next= to another site lands on the app, not there;
 //   6. a write without the CSRF header is refused, the CSRF cookie is SameSite=Strict, GET
 //      /logout ends nothing and POST /api/v1/auth/logout ends the session;
-//   7. password reset answers the same for an unknown and a known email.
+//   7. password reset answers the same for an unknown and a known email;
+//   8. after 10 failures an email is locked (429) even with the right password, an unknown email
+//      locks alike, and another account still signs in.
 import crypto from 'node:crypto'
 import { chromium } from './playwright.mjs'
 
@@ -119,7 +121,7 @@ try {
   let limited = 0
   for (let i = 0; i < 40; i++) {
     const r = await browser.newContext({ baseURL: base }).then((c) => c.request.post('/api/v1/auth/login', {
-      data: { email: `nobody.${run}@acme.test`, password: 'wrong' },
+      data: { email: `nobody.${run}.${i}@acme.test`, password: 'wrong' },
       headers: { 'X-Client-IP': `10.9.0.${i}`, 'X-Forwarded-For': `10.8.0.${i}`, 'X-Real-Ip': `10.7.0.${i}` }
     }))
     if (r.status() === 429) limited++
@@ -139,6 +141,24 @@ try {
   const known = await reset(plain.email)
   if (unknown.status !== known.status || unknown.body !== known.body) fail(`reset answers differ: ${unknown.status} ${unknown.body} / ${known.status} ${known.body}`)
   ok(`password reset: same answer for an unknown and a known email (${known.status}, ${unknown.ms} ms vs ${known.ms} ms)`)
+
+  // 8. Per-account lockout (app.login_failures = 10).
+  const tryLogin = async (email, password) => {
+    const c = await browser.newContext({ baseURL: base })
+    const r = await c.request.post('/api/v1/auth/login', { data: { email, password } })
+    return { status: r.status(), body: await r.text() }
+  }
+  const target = await mk(`lock.${run}@acme.test`, ['Agent'])
+  for (let i = 0; i < 10; i++) await tryLogin(target.email, 'Wrong-pass-1!')
+  const lockedRight = await tryLogin(target.email, target.password)
+  if (lockedRight.status !== 429) fail(`after 10 failures the right password got HTTP ${lockedRight.status}`)
+  const ghost = `ghost2.${run}@acme.test`
+  for (let i = 0; i < 10; i++) await tryLogin(ghost, 'Wrong-pass-1!')
+  const lockedGhost = await tryLogin(ghost, 'Wrong-pass-1!')
+  if (lockedGhost.status !== 429 || lockedGhost.body !== lockedRight.body) fail(`an unknown email locks differently: ${lockedGhost.status} ${lockedGhost.body}`)
+  const other = await tryLogin(admin.email, admin.password)
+  if (other.status !== 200) fail(`another account was locked too: HTTP ${other.status}`)
+  ok('10 failures lock that email (429 even with the right password), an unknown email alike, others unaffected')
 } catch (e) {
   failed = true
   console.error(`FAIL ${e.message}`)

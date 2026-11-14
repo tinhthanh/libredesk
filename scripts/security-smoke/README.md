@@ -21,7 +21,8 @@ templates, headers or the frontend build. They need Playwright: the frontend's, 
   limit, System signs in directly but not through a proxy, users:manage can't touch System,
   Admins, the Admin role or the caller's own role, a password set by an admin ends the agent's
   session, `?next=` stays on the site, CSRF covers writes with a Strict cookie and POST logout,
-  and password reset answers the same for any email. Takes a little over a minute (it waits out
+  password reset answers the same for any email, and 10 failures lock an email (429 even with
+  the right password, unknown emails alike) without touching other accounts. Takes a little over a minute (it waits out
   the login limit before the reset check).
 
 A throwaway instance: build (`cd frontend && pnpm build:main && pnpm build:widget`, then
