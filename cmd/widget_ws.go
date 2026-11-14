@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-
 	"github.com/abhinavxd/libredesk/internal/httputil"
 	"github.com/abhinavxd/libredesk/internal/inbox/channel/livechat"
 	"github.com/fasthttp/websocket"

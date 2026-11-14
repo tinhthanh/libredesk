@@ -42,6 +42,17 @@ func handleDeleteRole(r *fastglue.Request) error {
 		app   = r.Context.(*App)
 		id, _ = strconv.Atoi(r.RequestCtx.UserValue("id").(string))
 	)
+	target, err := app.role.Get(id)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := roleChangeRefusal(hasRole(roles, models.RoleAdmin), roles, target.Name); key != "" {
+		return refuse(app, r, key)
+	}
 	userIDs, _ := app.user.GetUserIDsByRole(id)
 	if err := app.role.Delete(id); err != nil {
 		return sendErrorEnvelope(r, err)
@@ -89,6 +100,13 @@ func handleUpdateRole(r *fastglue.Request) error {
 	oldRole, err := app.role.Get(id)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
+	}
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := roleChangeRefusal(hasRole(roles, models.RoleAdmin), roles, oldRole.Name); key != "" {
+		return refuse(app, r, key)
 	}
 
 	updatedRole, err := app.role.Update(id, req)

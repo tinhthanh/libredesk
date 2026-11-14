@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	rmodels "github.com/abhinavxd/libredesk/internal/role/models"
 	"mime/multipart"
 	"path/filepath"
 	"slices"
@@ -200,6 +201,13 @@ func handleCreateAgent(r *fastglue.Request) error {
 		return sendErrorEnvelope(r, err)
 	}
 
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), false, nil, req.Roles); key != "" {
+		return refuse(app, r, key)
+	}
 	agent, err := app.user.CreateAgent(req.FirstName, req.LastName, req.Email, req.Roles)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
@@ -274,6 +282,13 @@ func handleUpdateAgent(r *fastglue.Request) error {
 	if agent.Type != models.UserTypeAgent {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, app.i18n.Ts("globals.messages.notFound", "name", app.i18n.T("globals.terms.agent")), nil, envelope.NotFoundError)
 	}
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), agent.IsSystemUser(), agent.Roles, req.Roles); key != "" {
+		return refuse(app, r, key)
+	}
 	oldAvailabilityStatus := agent.AvailabilityStatus
 
 	// Update agent with individual fields
@@ -326,6 +341,18 @@ func handleDeleteAgent(r *fastglue.Request) error {
 	// Disallow if self-deleting.
 	if id == auser.ID {
 		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("user.userCannotDeleteSelf"), nil, envelope.InputError)
+	}
+
+	target, err := app.user.GetAgent(id, "")
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), target.IsSystemUser(), target.Roles, nil); key != "" {
+		return refuse(app, r, key)
 	}
 
 	// Soft delete user.
@@ -567,6 +594,13 @@ func handleGenerateAPIKey(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, app.i18n.Ts("globals.messages.notFound", "name", app.i18n.T("globals.terms.agent")), nil, envelope.NotFoundError)
 	}
 
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), user.IsSystemUser(), user.Roles, nil); key != "" {
+		return refuse(app, r, key)
+	}
 	// Generate API key and secret
 	apiKey, apiSecret, err := app.user.GenerateAPIKey(user.ID)
 	if err != nil {
@@ -605,6 +639,13 @@ func handleRevokeAPIKey(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(fasthttp.StatusNotFound, app.i18n.Ts("globals.messages.notFound", "name", app.i18n.T("globals.terms.agent")), nil, envelope.NotFoundError)
 	}
 
+	roles, err := callerRoles(app, r)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	if key := agentChangeRefusal(hasRole(roles, rmodels.RoleAdmin), user.IsSystemUser(), user.Roles, nil); key != "" {
+		return refuse(app, r, key)
+	}
 	// Revoke API key
 	if err := app.user.RevokeAPIKey(id); err != nil {
 		return sendErrorEnvelope(r, err)
