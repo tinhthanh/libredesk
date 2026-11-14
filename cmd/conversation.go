@@ -328,7 +328,17 @@ func handleGetConversation(r *fastglue.Request) error {
 	}
 
 	prev, _ := app.conversation.GetContactPreviousConversations(conv.ContactID, 10)
-	conv.PreviousConversations = filterCurrentPreviousConv(prev, conv.UUID)
+	prev = filterCurrentPreviousConv(prev, conv.UUID)
+	// Only those the agent may open: their subject and last message are not for everyone.
+	uuids := make([]string, 0, len(prev))
+	for _, p := range prev {
+		uuids = append(uuids, p.UUID)
+	}
+	allowed, err := app.conversation.FilterAuthorizedListUUIDs(user.ID, uuids)
+	if err != nil {
+		allowed = nil
+	}
+	conv.PreviousConversations = keepAuthorizedPrevious(prev, allowed)
 	return r.SendEnvelope(conv)
 }
 
@@ -784,6 +794,21 @@ func filterCurrentPreviousConv(convs []cmodels.PreviousConversation, uuid string
 	return []cmodels.PreviousConversation{}
 }
 
+// keepAuthorizedPrevious keeps the previous conversations whose UUID is in allowed.
+func keepAuthorizedPrevious(convs []cmodels.PreviousConversation, allowed []string) []cmodels.PreviousConversation {
+	ok := make(map[string]bool, len(allowed))
+	for _, u := range allowed {
+		ok[u] = true
+	}
+	out := []cmodels.PreviousConversation{}
+	for _, c := range convs {
+		if ok[c.UUID] {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // handleCreateConversation creates a new conversation and sends a message to it.
 func handleCreateConversation(r *fastglue.Request) error {
 	var (
@@ -852,7 +877,7 @@ func handleCreateConversation(r *fastglue.Request) error {
 	}
 
 	// Get media for the attachment ids, skip any already associated with a model.
-	media, err := getUnassociatedMedia(app, req.Attachments)
+	media, err := getUnassociatedMedia(app, req.Attachments, auser.ID)
 	if err != nil {
 		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, app.i18n.T("globals.messages.somethingWentWrong"), nil, envelope.GeneralError)
 	}
