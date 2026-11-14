@@ -160,10 +160,7 @@ func handleOIDCCallback(r *fastglue.Request) error {
 
 	app.lo.Info("oidc login successful", "provider_id", providerID, "user_id", user.ID, "email", user.Email.String)
 
-	redirectURL := "/"
-	if nextStr != "" {
-		redirectURL = nextStr
-	}
+	redirectURL := safeNext(nextStr, "/")
 
 	return r.RedirectURI(redirectURL, fasthttp.StatusFound, nil, "")
 }
