@@ -31,3 +31,21 @@ func TestEmailServersUnguardedWhenSSRFIsOff(t *testing.T) {
 		t.Errorf("no guard, no refusal: %v", err)
 	}
 }
+
+// An instance with email not set up (no SMTP host) must still start: the notifier makes its pool
+// at start, and a host that can't be judged is not refused (sending fails later on its own).
+func TestCheckHostLetsAnEmptyOrUnresolvableHostThrough(t *testing.T) {
+	lo := logf.New(logf.Opts{})
+	SetDialControl(ssrf.NewControl(true, nil, &lo))
+	t.Cleanup(func() { SetDialControl(nil) })
+
+	if err := checkHost("", 587); err != nil {
+		t.Fatalf("empty host refused: %v", err)
+	}
+	if err := checkHost("no-such-host.invalid", 587); err != nil {
+		t.Fatalf("unresolvable host refused: %v", err)
+	}
+	if err := checkHost("localhost", 587); err == nil {
+		t.Fatal("a host resolving to a blocked address was let through")
+	}
+}

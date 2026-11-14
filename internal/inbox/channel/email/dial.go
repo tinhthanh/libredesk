@@ -6,7 +6,6 @@ package email
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net"
 	"strconv"
 	"sync/atomic"
@@ -49,14 +48,18 @@ func dialGuardedTLS(address string, cfg *tls.Config) (net.Conn, error) {
 
 // checkHost refuses a host whose addresses the SSRF guard blocks. smtppool dials on its own, so
 // its host is checked when the pool is made.
+//
+// No host (email not set up) and a host that doesn't resolve are not refused here: there is no
+// address to judge, and refusing would stop Libredesk from starting (the notifier's pool is made
+// at start). Sending fails later on its own; only an address the guard blocks is refused.
 func checkHost(host string, port int) error {
 	c := control()
-	if c == nil {
+	if c == nil || host == "" {
 		return nil
 	}
 	ips, err := net.LookupIP(host)
 	if err != nil {
-		return fmt.Errorf("resolving %s: %w", host, err)
+		return nil
 	}
 	for _, ip := range ips {
 		if err := c("tcp", net.JoinHostPort(ip.String(), strconv.Itoa(port)), nil); err != nil {
