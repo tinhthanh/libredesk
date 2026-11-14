@@ -116,6 +116,10 @@ func handleOIDCCallback(r *fastglue.Request) error {
 		return redirectLoginError(r, oidcErrLoginFailed, nextStr)
 	}
 
+	if !claims.EmailTrusted() {
+		app.lo.Warn("oidc login rejected: email not verified by the provider", "provider_id", providerID)
+		return redirectLoginError(r, oidcErrLoginFailed, nextStr)
+	}
 	email := strings.ToLower(strings.TrimSpace(claims.Email))
 
 	user, err := app.user.GetAgent(0, email)

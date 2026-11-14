@@ -31,10 +31,18 @@ import (
 // ErrOIDCInvalidClient reports the provider rejecting the client credentials, typically an expired or wrong client secret.
 var ErrOIDCInvalidClient = errors.New("oidc provider rejected client credentials")
 
+// EmailTrusted says whether the provider's email can name an agent: not when it says the
+// address is unverified (anyone could have typed it there). Providers that don't send the
+// claim at all are trusted as before.
+func (c OIDCclaim) EmailTrusted() bool {
+	return c.EmailVerified == nil || *c.EmailVerified
+}
+
 // OIDCclaim holds OIDC token claims data
 type OIDCclaim struct {
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
+	Email string `json:"email"`
+	// EmailVerified is nil when the provider doesn't send the claim.
+	EmailVerified *bool  `json:"email_verified"`
 	Sub           string `json:"sub"`
 	Picture       string `json:"picture"`
 }
@@ -251,7 +259,7 @@ func (a *Auth) ExchangeOIDCToken(ctx context.Context, providerID int, code strin
 		a.logger.Error("error parsing claims from oidc id_token", "provider_id", providerID, "error", err)
 		return "", OIDCclaim{}, errors.New("error getting user from OIDC")
 	}
-	a.logger.Debug("oidc token exchange successful", "provider_id", providerID, "email", claims.Email, "email_verified", claims.EmailVerified)
+	a.logger.Debug("oidc token exchange successful", "provider_id", providerID, "email", claims.Email, "email_verified", claims.EmailVerified != nil && *claims.EmailVerified)
 	return rawIDTk, claims, nil
 }
 
