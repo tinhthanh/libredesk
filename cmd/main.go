@@ -336,6 +336,7 @@ func main() {
 
 	g := fastglue.NewGlue()
 	g.SetContext(app)
+	g.Before(securityHeaders)
 	initHandlers(g, wsHub)
 	g.Router.NotFound = helpCenterHostNotFound(app, g)
 

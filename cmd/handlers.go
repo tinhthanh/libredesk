@@ -422,6 +422,7 @@ func serveIndexPage(r *fastglue.Request) error {
 		return r.SendErrorEnvelope(http.StatusNotFound, app.i18n.T("validation.notFoundFile"), nil, envelope.NotFoundError)
 	}
 	r.RequestCtx.Response.Header.Set("Content-Type", "text/html")
+	setAgentAppCSP(r.RequestCtx)
 	r.RequestCtx.Response.SetBodyRaw(file.ReadBytes())
 
 	// Set CSRF cookie if not already set.

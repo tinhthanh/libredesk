@@ -81,7 +81,7 @@
                     </p>
                     <Letter
                       :key="highlightedMacro?.value"
-                      :html="replyContent"
+                      :html="safeHtml(replyContent)"
                       :allowedSchemas="['cid', 'https', 'http', 'mailto']"
                       class="w-full min-h-[120px] p-3 bg-muted/30 rounded-md border overflow-auto native-html"
                     />
@@ -247,6 +247,7 @@ import { Input } from '@shared-ui/components/ui/input'
 import { Label } from '@shared-ui/components/ui/label'
 import { useI18n } from 'vue-i18n'
 import { Letter } from 'vue-letter'
+import { safeHtml } from '@shared-ui/utils/safeHtml.js'
 
 const RENDER_CAP = 200
 

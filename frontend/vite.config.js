@@ -28,6 +28,13 @@ export default defineConfig(({ mode, command }) => {
 
   return {
     base: isWidget && command === 'build' ? '/widget/' : '/',
+    // vue-i18n's JIT message compiler interprets messages instead of building them with
+    // new Function, so the app runs under a Content-Security-Policy without 'unsafe-eval'
+    // (cmd/security_headers.go).
+    define: {
+      __INTLIFY_JIT_COMPILATION__: true,
+      __INTLIFY_DROP_MESSAGE_COMPILER__: false,
+    },
     css: {
       preprocessorOptions: {
         scss: {
