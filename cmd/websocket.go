@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
 	"github.com/abhinavxd/libredesk/internal/ws"
@@ -21,22 +22,7 @@ var agentUpgrader = websocket.FastHTTPUpgrader{
 	WriteBufferSize: 8192,
 	WriteBufferPool: wsWriteBufferPool,
 	CheckOrigin: func(ctx *fasthttp.RequestCtx) bool {
-		origin := string(ctx.Request.Header.Peek("Origin"))
-		if origin == "" {
-			return false
-		}
-		u, err := url.Parse(origin)
-		if err != nil || u.Host == "" {
-			return false
-		}
-		isLocalhost := u.Hostname() == "localhost"
-		if u.Scheme != "https" && !isLocalhost {
-			return false
-		}
-		if strings.EqualFold(u.Host, string(ctx.Request.Host())) {
-			return true
-		}
-		return isLocalhost
+		return agentWSOriginAllowed(string(ctx.Request.Header.Peek("Origin")), string(ctx.Request.Host()), wsAnyLocalhost.Load())
 	},
 	Error: ErrHandler,
 }
@@ -78,4 +64,29 @@ func handleWS(r *fastglue.Request, hub *ws.Hub) error {
 		app.lo.Error("error upgrading tcp connection", "user_id", auser.ID, "error", err)
 	}
 	return nil
+}
+
+// wsAnyLocalhost lets any localhost page open the agent websocket: only with app.env = "dev"
+// (a frontend dev server on another port). In production any local page (another app on the
+// agent's machine) could otherwise ride their session.
+var wsAnyLocalhost atomic.Bool
+
+// agentWSOriginAllowed says whether a page at origin may open the agent websocket on host: the
+// same host only (https, or http on localhost), or any localhost origin in dev.
+func agentWSOriginAllowed(origin, host string, anyLocalhost bool) bool {
+	if origin == "" {
+		return false
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	isLocalhost := u.Hostname() == "localhost"
+	if u.Scheme != "https" && !isLocalhost {
+		return false
+	}
+	if strings.EqualFold(u.Host, host) {
+		return true
+	}
+	return anyLocalhost && isLocalhost
 }

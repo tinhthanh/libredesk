@@ -165,6 +165,7 @@ func main() {
 
 	// Load the config files into Koanf.
 	initConfig(ko)
+	wsAnyLocalhost.Store(ko.String("app.env") == "dev")
 
 	// Validate custom static directory if provided.
 	if dir := getCustomStaticDir(); dir != "" {
