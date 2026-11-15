@@ -31,11 +31,13 @@ import (
 	"github.com/abhinavxd/libredesk/internal/csat"
 	customAttribute "github.com/abhinavxd/libredesk/internal/custom_attribute"
 	"github.com/abhinavxd/libredesk/internal/helpcenter"
+	"github.com/abhinavxd/libredesk/internal/image"
 	"github.com/abhinavxd/libredesk/internal/importer"
 	"github.com/abhinavxd/libredesk/internal/inbox"
 	"github.com/abhinavxd/libredesk/internal/inbox/channel/email"
 	"github.com/abhinavxd/libredesk/internal/inbox/channel/livechat"
 	imodels "github.com/abhinavxd/libredesk/internal/inbox/models"
+	"github.com/abhinavxd/libredesk/internal/inboxpurge"
 	"github.com/abhinavxd/libredesk/internal/macro"
 	"github.com/abhinavxd/libredesk/internal/media"
 	fs "github.com/abhinavxd/libredesk/internal/media/stores/localfs"
@@ -569,6 +571,25 @@ func initTeam(db *sqlx.DB, i18n *i18n.I18n) *team.Manager {
 		log.Fatalf("error initializing team manager: %v", err)
 	}
 	return mgr
+}
+
+// initInboxPurge sets up the hard delete of an inbox (omnichannel). Its archive defaults to a
+// directory inside the fs upload path, so it lives on the same volume as the files it copies;
+// with s3 it must be set (inbox_purge.archive_dir), or a purge is refused.
+func initInboxPurge(db *sqlx.DB, m *media.Manager) *inboxpurge.Purger {
+	dir := ko.String("inbox_purge.archive_dir")
+	if dir == "" && ko.String("upload.provider") == "fs" {
+		dir = filepath.Join(filepath.Clean(ko.String("upload.fs.upload_path")), ".omni-archive")
+	}
+	days := ko.Int("inbox_purge.archive_days")
+	if days <= 0 {
+		days = 30
+	}
+	return inboxpurge.New(db, m, initLogger("inbox_purge"), inboxpurge.Opts{
+		Dir:         dir,
+		Keep:        time.Duration(days) * 24 * time.Hour,
+		ThumbPrefix: image.ThumbPrefix,
+	})
 }
 
 // initMedia inits media manager.

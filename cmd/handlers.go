@@ -182,6 +182,7 @@ func initHandlers(g *fastglue.Fastglue, hub *ws.Hub) {
 	g.PUT("/api/v1/inboxes/{id}/toggle", perm(handleToggleInbox, "inboxes:manage"))
 	g.PUT("/api/v1/inboxes/{id}", perm(handleUpdateInbox, "inboxes:manage"))
 	g.DELETE("/api/v1/inboxes/{id}", perm(handleDeleteInbox, "inboxes:manage"))
+	g.POST("/api/v1/inboxes/{id}/purge", perm(handlePurgeInbox, "inboxes:manage"))
 
 	// OAuth endpoints for email inboxes.
 	g.POST("/api/v1/inboxes/oauth/{provider}/authorize", perm(handleOAuthAuthorize, "inboxes:manage"))
