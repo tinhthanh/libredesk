@@ -45,6 +45,7 @@ import (
 	"github.com/abhinavxd/libredesk/internal/helpcenter"
 	"github.com/abhinavxd/libredesk/internal/importer"
 	"github.com/abhinavxd/libredesk/internal/inbox"
+	"github.com/abhinavxd/libredesk/internal/inboxpurge"
 	"github.com/abhinavxd/libredesk/internal/media"
 	"github.com/abhinavxd/libredesk/internal/oidc"
 	"github.com/abhinavxd/libredesk/internal/ratelimit"
@@ -135,6 +136,8 @@ type App struct {
 	rateLimit        *ratelimit.Limiter
 	clientIP         *clientip.Resolver
 	loginGuard       *loginguard.Guard
+	// inboxPurge: hard delete of an inbox with an archive (fork of omnichannel).
+	inboxPurge *inboxpurge.Purger
 	// systemLoginViaProxy: whether the System user may sign in through the proxy (app.system_login_via_proxy).
 	systemLoginViaProxy bool
 	redis               *redis.Client
@@ -268,6 +271,7 @@ func main() {
 		clientIP                    = initClientIP()
 		rateLimiter                 = initRateLimit(rdb, clientIP)
 		loginGuard                  = initLoginGuard(rdb)
+		inboxPurge                  = initInboxPurge(db, media)
 	)
 
 	wsHub.SetConversationStore(conversation)
@@ -291,6 +295,7 @@ func main() {
 	go sla.Run(ctx, slaEvaluationInterval)
 	go sla.SendNotifications(ctx)
 	go media.DeleteUnlinkedMedia(ctx)
+	go inboxPurge.RunPrune(ctx)
 	go user.MonitorUserAvailability(ctx, onUsersOffline(conversation))
 	go conversation.RunDraftCleaner(ctx, draftRetentionDuration)
 	go userNotification.RunNotificationCleaner(ctx)
@@ -300,6 +305,7 @@ func main() {
 
 	var app = &App{
 		ctx:                 ctx,
+		inboxPurge:          inboxPurge,
 		lo:                  lo,
 		fs:                  fs,
 		sla:                 sla,

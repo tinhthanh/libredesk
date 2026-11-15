@@ -343,7 +343,7 @@
           @remove="(name) => askRemove(fbwebChannel(), name)"
         />
 
-        <AlertDialog :open="!!removing" @update:open="(open) => !open && (removing = null)">
+        <AlertDialog :open="!!removing" @update:open="(open) => !open && !purging && (removing = null)">
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>{{ t('admin.channelAccounts.remove') }}</AlertDialogTitle>
@@ -355,9 +355,28 @@
                 }}
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <!-- omnichannel: delete for good, conversations and files included (gateway purge.go) -->
+            <div class="space-y-2 rounded-md border border-destructive/40 p-3 text-sm">
+              <p class="font-medium text-destructive">{{ t('admin.channelAccounts.purge.title') }}</p>
+              <p class="text-muted-foreground">{{ t('admin.channelAccounts.purge.help') }}</p>
+              <Input
+                v-model="purgeConfirm"
+                :placeholder="t('admin.channelAccounts.purge.typeName', { name: removing?.name || '' })"
+                :disabled="purging"
+                autocomplete="off"
+              />
+            </div>
             <AlertDialogFooter>
-              <AlertDialogCancel>{{ t('globals.messages.cancel') }}</AlertDialogCancel>
-              <AlertDialogAction @click="confirmRemove">{{ t('admin.channelAccounts.remove') }}</AlertDialogAction>
+              <AlertDialogCancel :disabled="purging">{{ t('globals.messages.cancel') }}</AlertDialogCancel>
+              <Button
+                variant="destructive"
+                :disabled="purging || purgeConfirm.trim() !== removing?.name"
+                @click="confirmPurge"
+              >
+                <Spinner v-if="purging" class="mr-2 h-4 w-4" />
+                {{ t('admin.channelAccounts.purge.action') }}
+              </Button>
+              <AlertDialogAction :disabled="purging" @click="confirmRemove">{{ t('admin.channelAccounts.remove') }}</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -432,6 +451,8 @@ const channels = ref([])
 const busy = ref('')
 const login = ref(null) // {channel, name, locked, started, status}
 const removing = ref(null)
+const purgeConfirm = ref('')
+const purging = ref(false)
 const pages = ref({ open: false, waitFor: '', reload: 0 }) // Fanpage Web: Page chooser
 let listTimer = null
 let pollTimer = null
@@ -739,7 +760,29 @@ async function reconnect (channel, name) {
 }
 
 function askRemove (channel, name) {
+  purgeConfirm.value = ''
   removing.value = { channel, name }
+}
+
+// Delete for good: the bot stops, Libredesk archives then deletes the inbox (conversations,
+// messages, files, contacts only it had), the gateway forgets the account. The archive stays 30 days.
+async function confirmPurge () {
+  const { channel, name } = removing.value
+  purging.value = true
+  try {
+    const res = await api.purgeChannelAccount(channel.channel, name, purgeConfirm.value.trim())
+    const inbox = res.data?.inbox
+    toast(inbox
+      ? t('admin.channelAccounts.purge.done', { conversations: inbox.conversations, files: inbox.files })
+      : t('admin.channelAccounts.purge.doneEmpty'))
+    removing.value = null
+    await loadAccounts()
+    pages.value.reload++
+  } catch (error) {
+    toast(errorMessage(error), 'destructive')
+  } finally {
+    purging.value = false
+  }
 }
 
 async function confirmRemove () {

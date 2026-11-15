@@ -294,6 +294,9 @@ const startChannelOAuth = (channel, name) => http.post(`${channelAccountPath(cha
 // SMS: a new link code for a branch's Vetgo Phone Desktop (shown once).
 const linkChannelAgent = (channel, name) => http.post(`${channelAccountPath(channel, name)}/link`)
 const removeChannelAccount = (channel, name) => http.delete(channelAccountPath(channel, name))
+// Delete for good (conversations and files too); confirm is the account name typed again.
+const purgeChannelAccount = (channel, name, confirm) =>
+  http.post(`${channelAccountPath(channel, name)}/purge`, { confirm }, { timeout: 600000 })
 // Fanpage Web (D18): Facebook logins on the agents with their Pages, pick a Page.
 const getFanpageWebLogins = () => http.get('/gw/fbweb/logins')
 const setFanpageWebPage = (name, body) => http.put(`/gw/fbweb/pages/${encodeURIComponent(name)}`, body)
@@ -682,6 +685,7 @@ export default {
   startChannelOAuth,
   linkChannelAgent,
   removeChannelAccount,
+  purgeChannelAccount,
   getFanpageWebLogins,
   setFanpageWebPage,
   refreshFanpageWebLogin,

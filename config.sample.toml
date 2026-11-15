@@ -65,6 +65,13 @@ upload_path = 'uploads'
 # Signed URL expiry duration (e.g., "30m", "1h"). Defaults to 1h if unset.
 expiry = "1h"
 
+# Hard delete of an inbox (omnichannel: POST /api/v1/inboxes/{id}/purge). Everything deleted is
+# first archived here, one directory per purge, and kept archive_days days.
+[inbox_purge]
+# Defaults to <upload.fs.upload_path>/.omni-archive with the fs provider; required with s3.
+archive_dir = ""
+archive_days = 30
+
 # S3 provider.
 [upload.s3]
 # S3 endpoint URL (required only for non-AWS S3-compatible providers like MinIO).
