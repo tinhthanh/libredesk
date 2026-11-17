@@ -37,7 +37,7 @@ import { useUserStore } from '@main/stores/user'
 import { useEmitter } from '@main/composables/useEmitter'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { branchCallAction, branchCalls, callFeature, ensureCallFeature, pruneDialing } from '@main/utils/omnichannelCall.js'
-import { audioWanted, branchAudio, prepareAudio, stopBranchAudio } from '@main/utils/branchCallAudio.js'
+import { audioWanted, branchAudio, readyForCall, releaseUnusedMic, stopBranchAudio } from '@main/utils/branchCallAudio.js'
 
 const POLL_MS = 3000
 // Gateway chưa có kênh SMS (404): hỏi lại thưa hơn. Lỗi khác (mạng chập chờn): thử lại sớm.
@@ -61,11 +61,19 @@ const canControl = (c) => userStore.can('conversations:write') && callFeature.sm
 
 const open = (c) => router.push({ name: 'inbox-conversation', params: { type: 'all', uuid: c.conversation_uuid } })
 
+const MIC_ERRORS = { mic: 'conversation.call.micDenied', insecure: 'conversation.dial.audioInsecure' }
+
 async function act (c, action) {
   busy.value = true
   if (action === 'answer' && c.conversation_uuid) {
-    // Nghe máy trên máy tính: thanh cuộc gọi trong hội thoại tự chuyển tiếng sang đây (P5).
-    prepareAudio()
+    // Nghe máy trên máy tính (P5): micro trước, điện thoại bắt máy sau. Không có micro thì không bắt
+    // máy (khách nghe máy mà nhân viên không nói được); vẫn nghe được bằng điện thoại ở chi nhánh.
+    const why = await readyForCall()
+    if (why) {
+      busy.value = false
+      emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: t(MIC_ERRORS[why]) })
+      return
+    }
     audioWanted[c.conversation_uuid] = Date.now()
   }
   const { ok, error } = await branchCallAction(c, action)
@@ -73,6 +81,10 @@ async function act (c, action) {
   if (ok) {
     if (action === 'answer' && c.conversation_uuid) open(c)
     return
+  }
+  if (action === 'answer') {
+    delete audioWanted[c.conversation_uuid]
+    releaseUnusedMic()
   }
   emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: error || t('conversation.dial.failed') })
 }
