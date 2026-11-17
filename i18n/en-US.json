@@ -1695,6 +1695,7 @@
   "conversation.dial.decline": "Decline",
   "conversation.dial.hangup": "Hang up",
   "conversation.dial.hangingUp": "Hanging up…",
+  "conversation.dial.needsCable": "The branch phone is on Wi-Fi: plug in its cable (File transfer mode) to hear the call on this computer, or answer on the phone.",
   "conversation.dial.ended": "Call ended",
   "conversation.dial.speaker": "Turn on the phone's speaker",
   "conversation.dial.earpiece": "Turn off the speaker",

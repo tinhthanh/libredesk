@@ -37,7 +37,7 @@ import { useUserStore } from '@main/stores/user'
 import { useEmitter } from '@main/composables/useEmitter'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { branchCallAction, branchCalls, callFeature, ensureCallFeature, pruneDialing } from '@main/utils/omnichannelCall.js'
-import { audioWanted, branchAudio, readyForCall, releaseUnusedMic, stopBranchAudio } from '@main/utils/branchCallAudio.js'
+import { audioWanted, branchAudio, needsCable, readyForCall, releaseUnusedMic, stopBranchAudio } from '@main/utils/branchCallAudio.js'
 
 const POLL_MS = 3000
 // Gateway chưa có kênh SMS (404): hỏi lại thưa hơn. Lỗi khác (mạng chập chờn): thử lại sớm.
@@ -64,6 +64,10 @@ const open = (c) => router.push({ name: 'inbox-conversation', params: { type: 'a
 const MIC_ERRORS = { mic: 'conversation.call.micDenied', insecure: 'conversation.dial.audioInsecure' }
 
 async function act (c, action) {
+  if (action === 'answer' && needsCable(c)) {
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: t('conversation.dial.needsCable') })
+    return
+  }
   busy.value = true
   if (action === 'answer' && c.conversation_uuid) {
     // Nghe máy trên máy tính (P5): micro trước, điện thoại bắt máy sau. Không có micro thì không bắt

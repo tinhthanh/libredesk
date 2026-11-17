@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { branchAudio, readyForCall, releaseUnusedMic, stopBranchAudio, upsample } from './branchCallAudio.js'
+import { branchAudio, needsCable, readyForCall, releaseUnusedMic, stopBranchAudio, upsample } from './branchCallAudio.js'
 
 describe('branch call audio', () => {
+  it('refuses answering only when the phone is known to be off the cable', () => {
+    expect(needsCable({ computer_audio: false })).toBe(true)
+    expect(needsCable({ computer_audio: true })).toBe(false)
+    expect(needsCable({})).toBe(false)
+    expect(needsCable(null)).toBe(false)
+  })
+
   it('upsamples 16 kHz PCM to the context rate', () => {
     const pcm = new Int16Array([0, 16384, 32767])
     const out = upsample(pcm, 48000)
