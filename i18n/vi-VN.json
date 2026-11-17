@@ -1694,6 +1694,8 @@
   "conversation.dial.answer": "Nghe máy",
   "conversation.dial.decline": "Từ chối",
   "conversation.dial.hangup": "Cúp máy",
+  "conversation.dial.hangingUp": "Đang cúp máy…",
+  "conversation.dial.ended": "Đã kết thúc cuộc gọi",
   "conversation.dial.speaker": "Bật loa ngoài trên điện thoại",
   "conversation.dial.earpiece": "Tắt loa ngoài",
   "conversation.dial.dialing": "Điện thoại chi nhánh đang quay số…",

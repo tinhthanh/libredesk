@@ -1694,6 +1694,8 @@
   "conversation.dial.answer": "Answer",
   "conversation.dial.decline": "Decline",
   "conversation.dial.hangup": "Hang up",
+  "conversation.dial.hangingUp": "Hanging up…",
+  "conversation.dial.ended": "Call ended",
   "conversation.dial.speaker": "Turn on the phone's speaker",
   "conversation.dial.earpiece": "Turn off the speaker",
   "conversation.dial.dialing": "The branch phone is dialing…",
