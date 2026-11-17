@@ -17,6 +17,7 @@ import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notification'
 import { delayedLoading } from '@/utils/delayed-loading'
 import api from '../api'
+import { createEarlyUpdates } from './earlyUpdates'
 
 export const useConversationStore = defineStore('conversation', () => {
   const CONV_LIST_PAGE_SIZE = 25
@@ -833,7 +834,7 @@ export const useConversationStore = defineStore('conversation', () => {
     if (!messages.data.hasMessage(message.conversation_uuid, message.uuid)) {
       const echoId = message.echo_id
       if (echoId && messages.data.hasMessage(message.conversation_uuid, echoId)) {
-        messages.data.updateMessage(message.conversation_uuid, echoId, { uuid: message.uuid })
+        messages.data.updateMessage(message.conversation_uuid, echoId, { uuid: message.uuid, ...(earlyUpdates.take(message.uuid) || {}) })
         incrementMessageVersion()
         updateAssigneeLastSeen(message.conversation_uuid)
         return
@@ -879,6 +880,9 @@ export const useConversationStore = defineStore('conversation', () => {
       }
     }
   }
+
+  // Message updates that came before their message (earlyUpdates.js).
+  const earlyUpdates = createEarlyUpdates()
 
   function addPendingMessage (conversationUUID, content, isPrivate, author, attachments = [], textContent = '', meta = {}) {
     const pendingMessage = {
@@ -926,10 +930,13 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   function replacePendingMessage (conversationUUID, tempUUID, realMessage) {
+    // The server may have marked it sent before this response came back (earlyUpdates.js).
+    const early = earlyUpdates.take(realMessage.uuid)
     if (messages.data.hasMessage(conversationUUID, realMessage.uuid)) {
       messages.data.removeMessage(conversationUUID, tempUUID)
+      if (early) messages.data.updateMessage(conversationUUID, realMessage.uuid, early)
     } else {
-      messages.data.updateMessage(conversationUUID, tempUUID, realMessage)
+      messages.data.updateMessage(conversationUUID, tempUUID, early ? { ...realMessage, ...early } : realMessage)
     }
     incrementMessageVersion()
   }
@@ -947,7 +954,11 @@ export const useConversationStore = defineStore('conversation', () => {
 
   function mergeMessageUpdate (data) {
     const { conversation_uuid, uuid, ...fields } = data
-    if (!messages.data.hasMessage(conversation_uuid, uuid)) return
+    if (!messages.data.hasMessage(conversation_uuid, uuid)) {
+      // Not in the list yet (our own reply whose POST hasn't come back): apply when it arrives.
+      earlyUpdates.keep(uuid, fields)
+      return
+    }
     messages.data.updateMessage(conversation_uuid, uuid, fields)
     incrementMessageVersion()
   }
