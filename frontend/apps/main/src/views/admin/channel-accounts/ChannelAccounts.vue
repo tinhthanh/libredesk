@@ -15,6 +15,10 @@
                   <CardDescription v-else-if="channel.web_bridge">
                     {{ t('admin.channelAccounts.webBridgeHint') }}
                   </CardDescription>
+                  <!-- omnichannel: SMS, per-branch installer zip (gateway /gw/accounts/sms/{name}/installer) -->
+                  <CardDescription v-else-if="channel.channel === 'sms'">
+                    {{ t('admin.channelAccounts.smsInstallerHelp') }}
+                  </CardDescription>
                 </div>
                 <div v-if="channel.web_bridge" class="flex gap-2">
                   <Button size="sm" variant="outline" :disabled="!!channel.error" @click="openPages('')">
@@ -125,6 +129,15 @@
                         @click="reconnect(channel, account.name)"
                       >
                         {{ t('admin.channelAccounts.reconnect') }}
+                      </Button>
+                      <Button
+                        v-if="channel.channel === 'sms'"
+                        size="sm"
+                        variant="outline"
+                        :disabled="installing.busy"
+                        @click="askInstaller(account.name)"
+                      >
+                        {{ t('admin.channelAccounts.smsInstaller') }}
                       </Button>
                       <Button
                         v-if="account.state === 'running' && !channel.token_login && !channel.oauth_login && !channel.web_bridge"
@@ -240,7 +253,15 @@
                 <p v-else-if="login.status?.message" class="text-sm" :class="{ 'text-destructive': login.status.status === 'error' }">
                   {{ login.status.message }}
                 </p>
-                <div v-if="!login.link" class="flex justify-end">
+                <div v-if="!login.link" class="flex flex-wrap justify-end gap-2">
+                  <Button
+                    v-if="login.channel.channel === 'sms'"
+                    variant="outline"
+                    :disabled="login.started || installing.busy"
+                    @click="askInstaller(login.name)"
+                  >
+                    {{ t('admin.channelAccounts.smsInstaller') }}
+                  </Button>
                   <Button :disabled="login.started" @click="createLinkCode">
                     {{ t('admin.channelAccounts.smsCreateLink') }}
                   </Button>
@@ -343,6 +364,26 @@
           @remove="(name) => askRemove(fbwebChannel(), name)"
         />
 
+        <!-- omnichannel: SMS installer download makes a new link code, so confirm first -->
+        <AlertDialog :open="!!installing.name" @update:open="(open) => !open && !installing.busy && (installing.name = '')">
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{{ t('admin.channelAccounts.smsInstallerTitle', { name: installing.name }) }}</AlertDialogTitle>
+              <AlertDialogDescription class="space-y-2">
+                <span class="block">{{ t('admin.channelAccounts.smsInstallerConfirm') }}</span>
+                <span class="block font-medium text-destructive">{{ t('admin.channelAccounts.smsInstallerSecret') }}</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel :disabled="installing.busy">{{ t('globals.messages.cancel') }}</AlertDialogCancel>
+              <Button :disabled="installing.busy" @click="downloadInstaller">
+                <Spinner v-if="installing.busy" class="mr-2 h-4 w-4" />
+                {{ t('admin.channelAccounts.smsInstallerDownload') }}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <AlertDialog :open="!!removing" @update:open="(open) => !open && !purging && (removing = null)">
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -429,11 +470,13 @@ import {
   connectedAt,
   displayName,
   errorMessage,
+  fetchInstaller,
   historyEntries,
   isLoginFinished,
   isValidAccountName,
   needsSignIn,
-  oauthFinished
+  oauthFinished,
+  saveBlob
 } from '../../../features/admin/channel-accounts/channelAccounts.js'
 import api from '../../../api/index.js'
 import { setChannelAlerts } from '../../../features/admin/channel-accounts/useChannelAlerts.js'
@@ -562,6 +605,34 @@ async function createLinkCode () {
   } catch (error) {
     current.started = false
     current.status = { status: 'error', message: errorMessage(error) }
+  }
+}
+
+// SMS: per-branch installer zip. The gateway makes a new link code for each
+// download, so the confirm dialog warns first; the zip holds the branch's code.
+const installing = ref({ name: '', busy: false })
+
+function askInstaller (name) {
+  if (!isValidAccountName(name)) {
+    toast(t('admin.channelAccounts.invalidName'), 'destructive')
+    return
+  }
+  if (login.value) closeLogin()
+  installing.value = { name, busy: false }
+}
+
+async function downloadInstaller () {
+  const current = installing.value
+  current.busy = true
+  try {
+    const { blob, filename } = await fetchInstaller(current.name)
+    saveBlob(blob, filename)
+    toast(t('admin.channelAccounts.smsInstallerDone', { name: current.name }))
+    installing.value = { name: '', busy: false }
+    loadAccounts()
+  } catch (error) {
+    current.busy = false
+    toast(error?.message || 'Error', 'destructive')
   }
 }
 

@@ -1743,6 +1743,13 @@
   "admin.channelAccounts.smsLinkUrl": "Server address",
   "admin.channelAccounts.smsLinkCode": "Link code",
   "admin.channelAccounts.smsLinkOnce": "The code is shown once. A new code revokes the old one at once.",
+  "admin.channelAccounts.smsInstaller": "Download installer for this branch",
+  "admin.channelAccounts.smsInstallerHelp": "Download the installer for a branch, send it to that branch, unzip it and run Setup. That is all: no address or code to type. The installer is not code-signed, so Windows SmartScreen may warn: click \"More info\" then \"Run anyway\".",
+  "admin.channelAccounts.smsInstallerTitle": "Installer for branch {name}",
+  "admin.channelAccounts.smsInstallerConfirm": "Downloading makes a new link code for this branch. A PC linked with the old code stops working until it is reinstalled with the new package.",
+  "admin.channelAccounts.smsInstallerSecret": "The zip holds the branch's secret code. Send it only to that branch.",
+  "admin.channelAccounts.smsInstallerDownload": "Download",
+  "admin.channelAccounts.smsInstallerDone": "Installer for {name} downloaded. Unzip it on the branch PC and run Setup.",
   "admin.channelAccounts.copy": "Copy",
   "admin.channelAccounts.copied": "Copied"
 }
