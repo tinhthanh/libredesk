@@ -84,6 +84,27 @@ export async function prepareAudio() {
   return true
 }
 
+const MIC_CONSTRAINTS = { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } }
+
+// Gọi khi người dùng bấm Nghe máy hay 📞, TRƯỚC khi điện thoại bắt máy hay quay số: trình duyệt hỏi
+// quyền micro (lần đầu) lúc này, không phải khi khách đã nghe máy. Giữ micro cho luồng âm thanh sau.
+// Trả '' khi sẵn sàng, 'insecure' (không phải HTTPS) hoặc 'mic' (bị từ chối, không có micro).
+export async function readyForCall() {
+  if (!window.isSecureContext || !navigator.mediaDevices || !(await prepareAudio())) return 'insecure'
+  if (micStream) return ''
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS)
+  } catch {
+    return 'mic'
+  }
+  return ''
+}
+
+// Bỏ micro đã xin cho một cuộc gọi không thành (bắt máy, quay số lỗi): đèn micro tắt.
+export function releaseUnusedMic() {
+  if (branchAudio.status === 'idle') releaseMic()
+}
+
 async function ensureNodes() {
   if (!node) {
     const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }))
@@ -95,10 +116,8 @@ async function ensureNodes() {
       if (ws && ws.readyState === 1 && !branchAudio.muted) ws.send(e.data)
     }
   }
-  if (!micStream) {
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
-    })
+  if (!micStream) micStream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS)
+  if (!micSource) {
     micSource = ctx.createMediaStreamSource(micStream)
     micSource.connect(node)
   }

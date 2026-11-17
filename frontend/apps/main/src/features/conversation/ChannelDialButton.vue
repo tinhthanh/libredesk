@@ -125,6 +125,8 @@ import {
   audioWanted,
   branchAudio,
   prepareAudio,
+  readyForCall,
+  releaseUnusedMic,
   startBranchAudio,
   stopBranchAudio,
   toggleBranchMute
@@ -228,16 +230,28 @@ const fail = (error) =>
     description: error?.response?.data?.error || t('conversation.dial.failed')
   })
 
+// Micro trước khi điện thoại quay số hay bắt máy (lần đầu trình duyệt hỏi quyền lúc này).
+const micReady = async () => {
+  const why = await readyForCall()
+  if (!why) return true
+  emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: t(AUDIO_ERRORS[why]) })
+  return false
+}
+
 const dial = async () => {
   const conv = conversation.value
   if (!conv || busy.value) return
   busy.value = true
-  prepareAudio()
+  if (!(await micReady())) {
+    busy.value = false
+    return
+  }
   try {
     await api.dialBranchPhone(conv.uuid)
     branchCalls.dialing[conv.uuid] = Date.now()
     audioWanted[conv.uuid] = Date.now()
   } catch (error) {
+    releaseUnusedMic()
     fail(error)
   } finally {
     busy.value = false
@@ -249,13 +263,20 @@ const act = async (action) => {
   if (!c || busy.value) return
   busy.value = true
   if (action === 'answer') {
-    prepareAudio()
+    if (!(await micReady())) {
+      busy.value = false
+      return
+    }
     audioWanted[conversation.value.uuid] = Date.now()
   }
   if (action === 'decline' && audioHere.value) stopBranchAudio()
   const { ok, error } = await branchCallAction(c, action)
   busy.value = false
   if (!ok) {
+    if (action === 'answer') {
+      delete audioWanted[conversation.value.uuid]
+      releaseUnusedMic()
+    }
     emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: error || t('conversation.dial.failed') })
     return
   }
