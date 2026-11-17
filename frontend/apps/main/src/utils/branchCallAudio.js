@@ -14,6 +14,10 @@ export const branchAudio = reactive({
   error: ''
 })
 
+// Điện thoại chi nhánh không nối cáp (sms-bridge báo computer_audio=false): tiếng không sang máy
+// tính được, nên không bắt máy từ đây (khách nghe máy mà không ai nghe). Không rõ thì không chặn.
+export const needsCable = (call) => call?.computer_audio === false
+
 // Hội thoại vừa bấm Nghe máy / 📞: tự chuyển tiếng sang máy tính khi cuộc gọi bắt đầu nói.
 export const audioWanted = reactive({})
 

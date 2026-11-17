@@ -141,6 +141,7 @@ import {
   audioWanted,
   branchAudio,
   prepareAudio,
+  needsCable,
   readyForCall,
   releaseUnusedMic,
   startBranchAudio,
@@ -305,6 +306,10 @@ const dial = async () => {
 const act = async (action) => {
   const c = live.value
   if (!c || busy.value) return
+  if (action === 'answer' && needsCable(c)) {
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: t('conversation.dial.needsCable') })
+    return
+  }
   busy.value = true
   if (action === 'answer') {
     if (!(await micReady())) {
