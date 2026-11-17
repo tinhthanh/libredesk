@@ -52,6 +52,14 @@ export function ensureCallFeature() {
 }
 
 // Tên tài khoản Zalo của hội thoại: inbox gateway đặt tên "Zalo - <tài khoản>".
+// accountListed: tài khoản của inbox (tên sau "<Kênh> - ") có trong danh sách gateway trả. Phòng khám
+// omi đặt tên tài khoản "<slug>.<tên>" trong danh sách còn inbox chỉ có "<tên>": khớp cả hai dạng (gateway
+// của một phòng khám chỉ có tài khoản của phòng khám đó).
+export function accountListed(list, name) {
+  if (!name || !Array.isArray(list)) return false
+  return list.some((a) => a === name || (typeof a === 'string' && a.endsWith('.' + name)))
+}
+
 export function zaloAccountOf(conversation) {
   const name = conversation?.inbox_name || ''
   return name.startsWith('Zalo - ') ? name.slice('Zalo - '.length) : ''

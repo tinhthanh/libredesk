@@ -112,6 +112,7 @@ import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { omniChannel } from '@main/utils/omnichannel.js'
 import {
   DIAL_WAIT_MS,
+  accountListed,
   branchCallAction,
   branchCallOf,
   branchCalls,
@@ -150,7 +151,7 @@ onBeforeUnmount(stopTick)
 const conversation = computed(() => conversationStore.current)
 const account = computed(() => smsAccountOf(conversation.value))
 const eligible = computed(() => omniChannel(conversation.value) === 'sms' && userStore.can('conversations:write'))
-const visible = computed(() => eligible.value && callFeature.smsAccounts.includes(account.value))
+const visible = computed(() => eligible.value && accountListed(callFeature.smsAccounts, account.value))
 watch(
   () => [eligible.value, conversation.value?.uuid],
   ([yes]) => {
