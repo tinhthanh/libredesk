@@ -6,7 +6,11 @@ import {
   connectedAt,
   displayName,
   errorMessage,
+  fetchInstaller,
   historyEntries,
+  installerError,
+  installerFilename,
+  installerUrl,
   isLoginFinished,
   isValidAccountName,
   canaryChecks,
@@ -140,5 +144,42 @@ describe('channel accounts helpers', () => {
       { check: 'fbweb pages running', ok: false, detail: 'not_running: {"vetgo-test":"dropped"}' }
     ])
     expect(canaryChecks({})).toEqual([])
+  })
+
+  it('names the SMS installer from Content-Disposition', () => {
+    expect(installerFilename('attachment; filename="Vetgo-Phone-q1.zip"', 'q1')).toBe('Vetgo-Phone-q1.zip')
+    expect(installerFilename('attachment; filename=plain.zip', 'q1')).toBe('plain.zip')
+    expect(installerFilename("attachment; filename=\"x.zip\"; filename*=UTF-8''Vetgo%20Phone%20Qu%E1%BA%ADn%201.zip", 'q1'))
+      .toBe('Vetgo Phone Quận 1.zip')
+    expect(installerFilename('attachment; filename="..\\\\evil/../a b.zip"', 'q1')).toBe('a b.zip')
+    expect(installerFilename('attachment', 'q1')).toBe('Vetgo-Phone-q1.zip')
+    expect(installerFilename(null, 'shop.2')).toBe('Vetgo-Phone-shop.2.zip')
+    expect(installerFilename("attachment; filename*=UTF-8''%E0%A4%A", 'q1')).toBe('Vetgo-Phone-q1.zip')
+    expect(installerUrl('a b')).toBe('/gw/accounts/sms/a%20b/installer')
+  })
+
+  it('reads the gateway error of a failed installer download', async () => {
+    const res = (status, body) => ({ status, ok: false, text: async () => body })
+    expect(await installerError(res(501, '{"error":"Máy chủ chưa cấu hình bộ cài."}'))).toBe('Máy chủ chưa cấu hình bộ cài.')
+    expect(await installerError(res(403, 'forbidden\n'))).toBe('forbidden')
+    expect(await installerError(res(502, '<html>Bad gateway</html>'))).toBe('HTTP 502')
+    expect(await installerError(res(500, ''))).toBe('HTTP 500')
+  })
+
+  it('downloads the installer with the session cookie or throws the server message', async () => {
+    const calls = []
+    const ok = async (url, opts) => {
+      calls.push([url, opts])
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'attachment; filename="Vetgo-Phone-q1.zip"' },
+        blob: async () => 'ZIP'
+      }
+    }
+    expect(await fetchInstaller('q1', ok)).toEqual({ blob: 'ZIP', filename: 'Vetgo-Phone-q1.zip' })
+    expect(calls).toEqual([['/gw/accounts/sms/q1/installer', { credentials: 'include' }]])
+    const notConfigured = async () => ({ ok: false, status: 501, text: async () => '{"error":"Chưa có bộ cài"}' })
+    await expect(fetchInstaller('q1', notConfigured)).rejects.toThrow('Chưa có bộ cài')
   })
 })

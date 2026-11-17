@@ -167,3 +167,76 @@ export function canaryChecks (run) {
   }))
   return [...problems, ...checks]
 }
+
+// SMS: per-branch installer zip from the gateway (GET /gw/accounts/sms/{name}/installer).
+// The gateway makes a new link code for every download, so a PC linked with the
+// old code disconnects until it is reinstalled with the new package.
+export function installerUrl (name) {
+  return `/gw/accounts/sms/${encodeURIComponent(name)}/installer`
+}
+
+// File name from Content-Disposition (filename* in RFC 5987 first), without any
+// path; falls back to Vetgo-Phone-<branch>.zip.
+export function installerFilename (header, branch) {
+  const fallback = `Vetgo-Phone-${branch}.zip`
+  const value = String(header || '')
+  let name = ''
+  const star = value.match(/filename\*\s*=\s*([^;]+)/i)
+  if (star) {
+    const raw = star[1].trim().replace(/^"(.*)"$/, '$1').replace(/^[^']*'[^']*'/, '')
+    try {
+      name = decodeURIComponent(raw)
+    } catch {
+      name = ''
+    }
+  }
+  if (!name) {
+    const plain = value.match(/filename\s*=\s*("((?:[^"\\]|\\.)*)"|[^;]+)/i)
+    if (plain) name = plain[2] !== undefined ? plain[2].replace(/\\(.)/g, '$1') : plain[1].trim()
+  }
+  name = name.split(/[\\/]/).pop().trim()
+  return name || fallback
+}
+
+// Error text from a failed installer response: the gateway's {error} JSON
+// (501 when no installer is configured), else the plain body, else the status.
+export async function installerError (response) {
+  let text = ''
+  try {
+    text = await response.text()
+  } catch {
+    text = ''
+  }
+  try {
+    const data = JSON.parse(text)
+    if (data && typeof data === 'object' && (data.error || data.message)) return String(data.error || data.message)
+  } catch {
+    // not JSON
+  }
+  const plain = text.trim()
+  if (plain && plain.length < 300 && !plain.startsWith('<')) return plain
+  return `HTTP ${response.status}`
+}
+
+// Download the branch's installer with the admin session cookie. Returns
+// {blob, filename}; throws Error(message from the server) on failure.
+export async function fetchInstaller (name, fetchImpl = (...args) => window.fetch(...args)) {
+  const response = await fetchImpl(installerUrl(name), { credentials: 'include' })
+  if (!response.ok) throw new Error(await installerError(response))
+  const blob = await response.blob()
+  return { blob, filename: installerFilename(response.headers.get('Content-Disposition'), name) }
+}
+
+// Save a blob as a file through a temporary anchor.
+export function saveBlob (blob, filename, doc = document) {
+  const url = URL.createObjectURL(blob)
+  const a = doc.createElement('a')
+  a.href = url
+  a.download = filename
+  a.rel = 'noopener'
+  a.style.display = 'none'
+  doc.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

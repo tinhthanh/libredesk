@@ -1743,6 +1743,13 @@
   "admin.channelAccounts.smsLinkUrl": "Địa chỉ máy chủ",
   "admin.channelAccounts.smsLinkCode": "Mã liên kết",
   "admin.channelAccounts.smsLinkOnce": "Mã chỉ hiện một lần. Tạo mã mới thì mã cũ hết hiệu lực ngay.",
+  "admin.channelAccounts.smsInstaller": "Tải bộ cài cho chi nhánh này",
+  "admin.channelAccounts.smsInstallerHelp": "Tải bộ cài cho chi nhánh, gửi cho đúng chi nhánh đó, giải nén rồi chạy Setup là xong, không phải nhập địa chỉ hay mã. Bộ cài chưa ký số nên Windows SmartScreen có thể cảnh báo: bấm \"Thông tin thêm\" rồi \"Vẫn chạy\".",
+  "admin.channelAccounts.smsInstallerTitle": "Bộ cài cho chi nhánh {name}",
+  "admin.channelAccounts.smsInstallerConfirm": "Tải bộ cài sẽ tạo mã liên kết mới cho chi nhánh này. Máy đang liên kết bằng mã cũ sẽ ngừng hoạt động cho tới khi cài lại bằng gói mới.",
+  "admin.channelAccounts.smsInstallerSecret": "Tệp zip chứa mã bí mật của chi nhánh. Chỉ gửi cho đúng chi nhánh đó.",
+  "admin.channelAccounts.smsInstallerDownload": "Tải xuống",
+  "admin.channelAccounts.smsInstallerDone": "Đã tải bộ cài cho {name}. Giải nén trên máy chi nhánh rồi chạy Setup.",
   "admin.channelAccounts.copy": "Chép",
   "admin.channelAccounts.copied": "Đã chép"
 }
