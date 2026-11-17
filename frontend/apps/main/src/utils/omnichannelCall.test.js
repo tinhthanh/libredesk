@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/api', () => ({ default: {} }))
 
-const { DIAL_WAIT_MS, branchCallOf, branchCalls, callStatusKey, pruneDialing, formatCallDuration, secondsSince, smsAccountOf, waitIceGathering, zaloAccountOf } =
+const { DIAL_WAIT_MS, accountListed, branchCallOf, branchCalls, callStatusKey, pruneDialing, formatCallDuration, secondsSince, smsAccountOf, waitIceGathering, zaloAccountOf } =
   await import('./omnichannelCall.js')
 
 describe('omnichannel call helpers', () => {
@@ -62,5 +62,16 @@ describe('omnichannel call helpers', () => {
     pruneDialing(1000 + DIAL_WAIT_MS + 1)
     expect(Object.keys(branchCalls.dialing)).toEqual(['fresh'])
     branchCalls.dialing = {}
+  })
+})
+
+describe('accountListed', () => {
+  it('matches an inbox account with or without the clinic prefix', () => {
+    expect(accountListed(['test-q7'], 'test-q7')).toBe(true)
+    expect(accountListed(['vetgo-test.test-q7'], 'test-q7')).toBe(true)
+    expect(accountListed(['vetgo-test.test-q7'], 'q7')).toBe(false)
+    expect(accountListed(['vetgo-test.other'], 'test-q7')).toBe(false)
+    expect(accountListed(['vetgo-test.test-q7'], '')).toBe(false)
+    expect(accountListed(null, 'test-q7')).toBe(false)
   })
 })

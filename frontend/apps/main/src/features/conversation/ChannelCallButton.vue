@@ -92,7 +92,7 @@ import {
   callActive,
   callFeature,
   ensureCallFeature,
-  zaloAccountOf,
+  accountListed, zaloAccountOf,
   callStatusKey,
   dismissCall,
   formatCallDuration,
@@ -111,7 +111,7 @@ const eligible = computed(
   () => omniChannel(conversation.value) === 'zalo' && userStore.can('conversations:write') && !!window.RTCPeerConnection
 )
 const visible = computed(
-  () => eligible.value && callFeature.accounts.includes(zaloAccountOf(conversation.value))
+  () => eligible.value && accountListed(callFeature.accounts, zaloAccountOf(conversation.value))
 )
 watch(
   () => [eligible.value, conversation.value?.uuid],
@@ -120,7 +120,7 @@ watch(
   },
   { immediate: true }
 )
-const videoAllowed = computed(() => callFeature.videoAccounts.includes(zaloAccountOf(conversation.value)))
+const videoAllowed = computed(() => accountListed(callFeature.videoAccounts, zaloAccountOf(conversation.value)))
 const isThisCall = computed(() => call.conversationUUID && call.conversationUUID === conversation.value?.uuid)
 const active = computed(() => callActive())
 const statusText = computed(() => {
