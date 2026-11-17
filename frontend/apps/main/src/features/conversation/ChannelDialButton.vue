@@ -3,7 +3,14 @@
        trực tiếp. Các nút điều khiển điện thoại thật qua vglink; tiếng nghe trên máy tính khi điện thoại
        cắm cáp vào máy chi nhánh (🎧), không thì ở điện thoại. -->
   <div v-if="visible" class="flex items-center gap-1">
-    <template v-if="live">
+    <span
+      v-if="live && hangingUp === live.call_id"
+      class="text-xs whitespace-nowrap px-2 py-1 rounded-md bg-muted text-muted-foreground"
+      data-testid="branch-call-status"
+    >
+      {{ t('conversation.dial.hangingUp') }}
+    </span>
+    <template v-else-if="live">
       <span
         class="text-xs whitespace-nowrap px-2 py-1 rounded-md"
         :class="live.state === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-muted text-muted-foreground'"
@@ -73,6 +80,14 @@
         <PhoneOff class="w-4 h-4" />
       </Button>
     </template>
+    <!-- Vừa kết thúc: thông báo thay chỗ nút 📞 vài giây, để lần bấm cúp máy thứ hai không gọi lại khách. -->
+    <span
+      v-else-if="justEnded"
+      class="text-xs whitespace-nowrap px-2 py-1 rounded-md bg-muted text-muted-foreground"
+      data-testid="branch-call-ended"
+    >
+      {{ t('conversation.dial.ended') }}
+    </span>
     <span
       v-else-if="dialing"
       class="text-xs whitespace-nowrap px-2 py-1 rounded-md bg-muted text-muted-foreground"
@@ -161,6 +176,34 @@ watch(
 )
 
 const live = computed(() => branchCallOf(conversation.value?.uuid))
+
+// Cúp máy: thanh báo ngay "Đang cúp máy…" (danh sách cuộc gọi chỉ cập nhật mỗi 3 giây), rồi
+// "Đã kết thúc" trong ENDED_MS thay chỗ nút 📞: bấm cúp lần nữa không thành gọi lại khách.
+const ENDED_MS = 5000
+const hangingUp = ref('')
+const justEnded = ref(false)
+let endedTimer = null
+const markEnded = () => {
+  hangingUp.value = ''
+  justEnded.value = true
+  clearTimeout(endedTimer)
+  endedTimer = setTimeout(() => (justEnded.value = false), ENDED_MS)
+}
+onBeforeUnmount(() => clearTimeout(endedTimer))
+watch(
+  () => live.value?.call_id,
+  (now, before) => {
+    if (before && !now) markEnded()
+  }
+)
+watch(
+  () => conversation.value?.uuid,
+  () => {
+    clearTimeout(endedTimer)
+    hangingUp.value = ''
+    justEnded.value = false
+  }
+)
 const dialing = computed(() => {
   const at = branchCalls.dialing[conversation.value?.uuid]
   return !!at && now.value - at < DIAL_WAIT_MS
@@ -271,9 +314,11 @@ const act = async (action) => {
     audioWanted[conversation.value.uuid] = Date.now()
   }
   if (action === 'decline' && audioHere.value) stopBranchAudio()
+  if (action === 'decline') hangingUp.value = c.call_id
   const { ok, error } = await branchCallAction(c, action)
   busy.value = false
   if (!ok) {
+    if (action === 'decline') hangingUp.value = ''
     if (action === 'answer') {
       delete audioWanted[conversation.value.uuid]
       releaseUnusedMic()
