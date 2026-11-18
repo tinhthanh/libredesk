@@ -1695,6 +1695,7 @@
   "conversation.dial.decline": "Từ chối",
   "conversation.dial.hangup": "Cúp máy",
   "conversation.dial.hangingUp": "Đang cúp máy…",
+  "conversation.dial.needsCableShort": "Cắm cáp điện thoại để nghe, gọi trên máy tính",
   "conversation.dial.needsCable": "Điện thoại chi nhánh đang nối qua Wi-Fi: cắm cáp (chế độ Truyền tệp) để nghe trên máy tính, hoặc nghe trực tiếp trên điện thoại.",
   "conversation.dial.ended": "Đã kết thúc cuộc gọi",
   "conversation.dial.speaker": "Bật loa ngoài trên điện thoại",

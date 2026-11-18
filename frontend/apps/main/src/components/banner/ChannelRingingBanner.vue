@@ -12,7 +12,16 @@
       {{ t('conversation.ringing.text', { who: who(c), branch: c.label }) }}
     </span>
     <template v-if="canControl(c)">
-      <Button size="sm" class="h-7 bg-green-600 hover:bg-green-700 text-white" :disabled="busy" @click="act(c, 'answer')">
+      <!-- Điện thoại qua Wi-Fi: tiếng không sang máy tính được, chỉ báo có cuộc gọi, không cho nghe ở đây. -->
+      <span
+        v-if="needsCable(c)"
+        class="text-xs px-2 py-1 rounded-md bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
+        :title="t('conversation.dial.needsCable')"
+        data-testid="ringing-needs-cable"
+      >
+        {{ t('conversation.dial.needsCableShort') }}
+      </span>
+      <Button v-else size="sm" class="h-7 bg-green-600 hover:bg-green-700 text-white" :disabled="busy" @click="act(c, 'answer')">
         <Phone class="w-3.5 h-3.5 mr-1" />{{ t('conversation.dial.answer') }}
       </Button>
       <Button size="sm" variant="destructive" class="h-7" :disabled="busy" @click="act(c, 'decline')">
