@@ -18,15 +18,23 @@
       >
         {{ statusText }}
       </span>
+      <span
+        v-if="live.incoming && live.state === 'ringing' && needsCable(live)"
+        class="text-xs whitespace-nowrap px-2 py-1 rounded-md bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
+        :title="t('conversation.dial.needsCable')"
+        data-testid="branch-needs-cable"
+      >
+        {{ t('conversation.dial.needsCableShort') }}
+      </span>
       <Button
-        v-if="live.incoming && live.state === 'ringing'"
+        v-else-if="live.incoming && live.state === 'ringing'"
         class="h-11 md:h-8 px-2 bg-green-600 hover:bg-green-700 text-white"
         :disabled="busy"
         @click="act('answer')"
       >
         <Phone class="w-4 h-4 md:mr-1" /><span class="hidden md:inline">{{ t('conversation.dial.answer') }}</span>
       </Button>
-      <template v-if="live.state === 'active'">
+      <template v-if="live.state === 'active' && !needsCable(live)">
         <Tooltip>
           <TooltipTrigger as-child>
             <Button
@@ -94,6 +102,15 @@
       data-testid="branch-call-status"
     >
       {{ t('conversation.dial.dialing') }}
+    </span>
+    <!-- Điện thoại chi nhánh qua Wi-Fi: không gọi đi từ đây (tiếng không sang máy tính được). -->
+    <span
+      v-else-if="branchNeedsCable"
+      class="text-xs whitespace-nowrap px-2 py-1 rounded-md bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100"
+      :title="t('conversation.dial.needsCable')"
+      data-testid="branch-needs-cable"
+    >
+      {{ t('conversation.dial.needsCableShort') }}
     </span>
     <Tooltip v-else>
       <TooltipTrigger as-child>
@@ -177,6 +194,7 @@ watch(
 )
 
 const live = computed(() => branchCallOf(conversation.value?.uuid))
+const branchNeedsCable = computed(() => accountListed(callFeature.smsNeedsCable, account.value))
 
 // Cúp máy: thanh báo ngay "Đang cúp máy…" (danh sách cuộc gọi chỉ cập nhật mỗi 3 giây), rồi
 // "Đã kết thúc" trong ENDED_MS thay chỗ nút 📞: bấm cúp lần nữa không thành gọi lại khách.

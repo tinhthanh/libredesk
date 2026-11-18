@@ -24,7 +24,8 @@ export const call = reactive({
 
 // Tài khoản Zalo được gọi điện (admin bật trên trang Tài khoản kênh). Gateway trả 404 khi chưa
 // có zalo-call. Hỏi lại sau mỗi phút để bật/tắt có tác dụng mà không cần tải lại trang.
-export const callFeature = reactive({ checked: false, accounts: [], videoAccounts: [], smsAccounts: [] })
+// smsNeedsCable: chi nhánh SMS mà điện thoại đang nối qua Wi-Fi (gateway sms_needs_cable): không gọi đi được.
+export const callFeature = reactive({ checked: false, accounts: [], videoAccounts: [], smsAccounts: [], smsNeedsCable: [] })
 const FEATURE_TTL_MS = 60 * 1000
 let featureProbe = null
 let featureAt = 0
@@ -38,11 +39,13 @@ export function ensureCallFeature() {
         callFeature.accounts = Array.isArray(data?.zalo_accounts) ? data.zalo_accounts : []
         callFeature.videoAccounts = Array.isArray(data?.video_accounts) ? data.video_accounts : []
         callFeature.smsAccounts = Array.isArray(data?.sms_accounts) ? data.sms_accounts : []
+        callFeature.smsNeedsCable = Array.isArray(data?.sms_needs_cable) ? data.sms_needs_cable : []
       })
       .catch(() => {
         callFeature.accounts = []
         callFeature.videoAccounts = []
         callFeature.smsAccounts = []
+        callFeature.smsNeedsCable = []
       })
       .finally(() => {
         callFeature.checked = true
