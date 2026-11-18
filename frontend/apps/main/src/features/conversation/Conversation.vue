@@ -17,6 +17,7 @@
       <div class="flex items-center gap-2 shrink-0">
         <ChannelCallButton />
         <ChannelDialButton />
+        <ChannelFbwebCallBar />
         <Button
           v-if="isMobile"
           variant="ghost"
@@ -84,6 +85,7 @@
     <div class="relative flex flex-col flex-grow overflow-hidden">
       <MessageList class="flex-1 overflow-y-auto" />
       <ChannelCallVideo />
+      <FbwebCallVideo />
       <ReplyBox />
     </div>
   </div>
@@ -109,6 +111,8 @@ import MessageList from '@/features/conversation/message/MessageList.vue'
 import ReplyBox from './ReplyBox.vue'
 import ChannelCallButton from './ChannelCallButton.vue'
 import ChannelDialButton from './ChannelDialButton.vue'
+import ChannelFbwebCallBar from './ChannelFbwebCallBar.vue'
+import FbwebCallVideo from './FbwebCallVideo.vue'
 import ChannelCallVideo from './ChannelCallVideo.vue'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { CONVERSATION_DEFAULT_STATUSES } from '@main/constants/conversation'

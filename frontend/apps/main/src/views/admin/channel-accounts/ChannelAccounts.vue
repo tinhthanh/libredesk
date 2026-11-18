@@ -87,6 +87,19 @@
                       />
                       {{ t('admin.channelAccounts.calls') }}
                     </label>
+                    <!-- Fanpage Web: khách gọi Trang qua Messenger đổ chuông ở Libredesk (gateway calls.fbweb_accounts) -->
+                    <label
+                      v-if="channel.channel === 'fb-bridge-web' && callSettings.fbwebAvailable"
+                      class="flex items-center gap-2 text-xs text-muted-foreground"
+                      :title="t('admin.channelAccounts.fbwebCallsHint')"
+                    >
+                      <Switch
+                        :checked="callSettings.fbwebAccounts.includes(account.name)"
+                        :disabled="busy === 'call/' + account.name"
+                        @update:checked="(on) => setCalls(account.name, on, false, 'fb-bridge-web')"
+                      />
+                      {{ t('admin.channelAccounts.calls') }}
+                    </label>
                     <label
                       v-if="channel.channel === 'zalo' && callSettings.available"
                       class="flex items-center gap-2 text-xs text-muted-foreground"
@@ -508,7 +521,7 @@ function toast (description, variant) {
 }
 
 // Gọi khách Zalo, và gọi qua điện thoại chi nhánh (SMS): tài khoản nào được bật (gateway /gw/settings/calls).
-const noCallSettings = () => ({ available: false, accounts: [], videoAccounts: [], smsAvailable: false, smsAccounts: [] })
+const noCallSettings = () => ({ available: false, accounts: [], videoAccounts: [], smsAvailable: false, smsAccounts: [], fbwebAvailable: false, fbwebAccounts: [] })
 const callSettings = ref(noCallSettings())
 
 async function loadCallSettings () {
@@ -526,7 +539,9 @@ function callSettingsFrom (data) {
     accounts: data.zalo_accounts || [],
     videoAccounts: data.video_accounts || [],
     smsAvailable: !!data.sms_available,
-    smsAccounts: data.sms_accounts || []
+    smsAccounts: data.sms_accounts || [],
+    fbwebAvailable: !!data.fbweb_available,
+    fbwebAccounts: data.fbweb_accounts || []
   }
 }
 

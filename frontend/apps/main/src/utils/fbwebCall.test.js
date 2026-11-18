@@ -1,0 +1,125 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const calls = []
+const fbwebCallAction = vi.fn(async (account, callId, action, body) => {
+  calls.push({ account, callId, action, body })
+  if (action === 'answer') {
+    return { data: { answer: 'v=0 answer', offer: 'v=0 reoffer', tracks: [{ id: 'a1', video: false, on: true }] } }
+  }
+  return { data: { ok: true } }
+})
+vi.mock('@main/api', () => ({ default: { fbwebCallAction: (...a) => fbwebCallAction(...a) } }))
+
+const { answerFbwebCall, declineFbwebCall, fbwebAccountOf, fbwebCall, fbwebKey, hangupFbwebCall, isFbwebCall, syncFbwebCall, toggleFbwebMute } =
+  await import('./fbwebCall.js')
+
+// RTCPeerConnection giả: ghi các bước để kiểm thứ tự như cửa sổ cuộc gọi của Business Suite.
+class FakePC {
+  constructor (cfg) {
+    FakePC.last = this
+    this.cfg = cfg
+    this.steps = []
+    this.connectionState = 'new'
+  }
+  addTrack () { this.steps.push('addTrack') }
+  addTransceiver (kind, opts) { this.steps.push(`transceiver:${kind}:${opts.direction}`) }
+  createDataChannel () { this.steps.push('datachannel') }
+  async createOffer () { return { type: 'offer', sdp: 'v=0\r\na=fmtp:111 minptime=10;useinbandfec=1\r\n' } }
+  async createAnswer () { return { type: 'answer', sdp: 'v=0 local answer' } }
+  async setLocalDescription (d) { this.localDescription = d; this.steps.push(`local:${d.type}`) }
+  async setRemoteDescription (d) { this.steps.push(`remote:${d.type}:${d.sdp}`) }
+  close () { this.steps.push('close') }
+}
+
+const track = { enabled: true, stop: vi.fn() }
+const stream = { getAudioTracks: () => [track], getTracks: () => [track] }
+const ring = { channel: 'fb-bridge-web', account: 'vetgo-test', call_id: 'ROOM:1', conversation_uuid: 'u1', incoming: true, state: 'ringing' }
+
+beforeEach(() => {
+  calls.length = 0
+  fbwebCallAction.mockClear()
+  globalThis.RTCPeerConnection = FakePC
+  Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true })
+  Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn(async () => stream) }, configurable: true })
+})
+
+afterEach(async () => {
+  await hangupFbwebCall()
+})
+
+describe('Fanpage Web calls', () => {
+  it('reads the Page from the inbox name and recognises its calls', () => {
+    expect(fbwebAccountOf({ inbox_name: 'Fanpage Web - vetgo-test' })).toBe('vetgo-test')
+    expect(fbwebAccountOf({ inbox_name: 'Fanpage - vetgo' })).toBe('')
+    expect(fbwebAccountOf(null)).toBe('')
+    expect(isFbwebCall(ring)).toBe(true)
+    expect(isFbwebCall({ channel: 'sms' })).toBe(false)
+    expect(fbwebKey(ring)).toBe('vetgo-test:ROOM:1')
+  })
+
+  it('answers like the Business Suite call window', async () => {
+    const res = await answerFbwebCall(ring)
+    expect(res.ok).toBe(true)
+    const pc = FakePC.last
+    expect(pc.cfg.iceServers).toEqual([{ urls: 'stun:stun.fbsbx.com:3478' }])
+    expect(pc.cfg.iceTransportPolicy).toBeUndefined()
+    expect(pc.steps).toEqual([
+      'addTrack', 'transceiver:video:recvonly', 'datachannel', 'local:offer',
+      'remote:answer:v=0 answer', 'remote:offer:v=0 reoffer', 'local:answer'
+    ])
+    // Tham số Opus như Business Suite; answer của offer mới không gửi đi.
+    expect(calls.map((c) => c.action)).toEqual(['answer', 'subscribe'])
+    expect(calls[0].body.offer).toContain('a=fmtp:111 minptime=10;useinbandfec=0;stereo=0;usedtx=1;maxaveragebitrate=20000;maxplaybackrate=16000')
+    expect(calls[1].body.tracks).toEqual([{ id: 'a1', video: false, on: true }])
+    expect(fbwebCall.state).toBe('in_call')
+    expect(fbwebCall.conversationUUID).toBe('u1')
+
+    // Đang nghe một cuộc thì không nghe cuộc khác.
+    expect((await answerFbwebCall({ ...ring, call_id: 'ROOM:2' })).reason).toBe('busy')
+
+    toggleFbwebMute()
+    expect(fbwebCall.muted).toBe(true)
+    expect(track.enabled).toBe(false)
+
+    await hangupFbwebCall()
+    expect(calls.at(-1).action).toBe('hangup')
+    expect(fbwebCall.state).toBe('idle')
+    expect(pc.steps.at(-1)).toBe('close')
+  })
+
+  it('stops when the call leaves the gateway list (the customer hung up)', async () => {
+    await answerFbwebCall(ring)
+    syncFbwebCall([ring])
+    expect(fbwebCall.state).toBe('in_call')
+    syncFbwebCall([])
+    expect(fbwebCall.state).toBe('idle')
+    expect(calls.map((c) => c.action)).toEqual(['answer', 'subscribe'])
+  })
+
+  it('reports a missing microphone without answering', async () => {
+    navigator.mediaDevices.getUserMedia = vi.fn(async () => { throw new Error('denied') })
+    const res = await answerFbwebCall(ring)
+    expect(res).toEqual({ ok: false, reason: 'mic', error: '' })
+    expect(calls).toEqual([])
+    expect(fbwebCall.state).toBe('idle')
+  })
+
+  it('hangs up when Facebook refuses midway, with the gateway reason', async () => {
+    fbwebCallAction.mockImplementationOnce(async () => {
+      const error = new Error('422')
+      error.response = { data: { error: 'Không thực hiện được: cuộc gọi đã kết thúc.' } }
+      throw error
+    })
+    const res = await answerFbwebCall(ring)
+    expect(res.ok).toBe(false)
+    expect(res.error).toBe('Không thực hiện được: cuộc gọi đã kết thúc.')
+    expect(calls.map((c) => c.action)).toEqual(['hangup'])
+    expect(fbwebCall.state).toBe('idle')
+  })
+
+  it('silences a ringing call', async () => {
+    expect((await declineFbwebCall(ring)).ok).toBe(true)
+    expect(calls).toEqual([{ account: 'vetgo-test', callId: 'ROOM:1', action: 'decline', body: {} }])
+  })
+})
