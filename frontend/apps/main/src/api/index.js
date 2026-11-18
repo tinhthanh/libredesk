@@ -342,6 +342,9 @@ const dialBranchPhone = (conversationUUID) => http.post(`/gw/conversations/${enc
 const getRingingCalls = () => http.get('/gw/calls/ringing')
 const branchCallAction = (account, callID, action) =>
   http.post(`/gw/branch-calls/${encodeURIComponent(account)}/${encodeURIComponent(callID)}/${action}`, {})
+// Fanpage Web calls (gateway fbwebcalls.go): answer {offer} -> {answer, offer, tracks}, subscribe {tracks}, decline, hangup.
+const fbwebCallAction = (account, callID, action, body = {}) =>
+  http.post(`/gw/fbweb-calls/${encodeURIComponent(account)}/${encodeURIComponent(callID)}/${action}`, body, { timeout: 40000 })
 const getTags = () => http.get('/api/v1/tags')
 const importTags = (data) =>
   http.post('/api/v1/tags/import', data, {
@@ -710,6 +713,7 @@ export default {
   dialBranchPhone,
   getRingingCalls,
   branchCallAction,
+  fbwebCallAction,
   editChannelMessage,
   getChannelPresence,
   resolveChannelRecipient,
