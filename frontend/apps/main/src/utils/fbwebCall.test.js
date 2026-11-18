@@ -2,16 +2,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const calls = []
+// waits: trạng thái lần lượt mà wait trả (cuộc gọi đi).
+let waits = []
 const fbwebCallAction = vi.fn(async (account, callId, action, body) => {
   calls.push({ account, callId, action, body })
   if (action === 'answer') {
     return { data: { answer: 'v=0 answer', offer: 'v=0 reoffer', tracks: [{ id: 'a1', video: false, on: true }] } }
   }
+  if (action === 'wait') {
+    await new Promise((r) => setTimeout(r, 5))
+    return { data: waits.length ? waits.shift() : { state: 'ringing' } }
+  }
   return { data: { ok: true } }
 })
-vi.mock('@main/api', () => ({ default: { fbwebCallAction: (...a) => fbwebCallAction(...a) } }))
+const startFbwebCall = vi.fn(async (uuid, offer) => {
+  calls.push({ action: 'start', uuid, offer })
+  return { data: { account: 'vetgo-test', call_id: 'ROOM:9', answer: 'v=0 answer' } }
+})
+vi.mock('@main/api', () => ({ default: { fbwebCallAction: (...a) => fbwebCallAction(...a), startFbwebCall: (...a) => startFbwebCall(...a) } }))
 
-const { answerFbwebCall, declineFbwebCall, fbwebAccountOf, fbwebCall, fbwebKey, hangupFbwebCall, isFbwebCall, syncFbwebCall, toggleFbwebMute } =
+const { answerFbwebCall, callFbwebCustomer, declineFbwebCall, fbwebAccountOf, fbwebCall, fbwebKey, hangupFbwebCall, isFbwebCall, syncFbwebCall, toggleFbwebMute } =
   await import('./fbwebCall.js')
 
 // RTCPeerConnection giả: ghi các bước để kiểm thứ tự như cửa sổ cuộc gọi của Business Suite.
@@ -38,8 +48,9 @@ const ring = { channel: 'fb-bridge-web', account: 'vetgo-test', call_id: 'ROOM:1
 
 beforeEach(() => {
   calls.length = 0
+  waits = []
   fbwebCallAction.mockClear()
-  globalThis.RTCPeerConnection = FakePC
+  window.RTCPeerConnection = FakePC
   Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true })
   Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: vi.fn(async () => stream) }, configurable: true })
 })
@@ -121,5 +132,55 @@ describe('Fanpage Web calls', () => {
   it('silences a ringing call', async () => {
     expect((await declineFbwebCall(ring)).ok).toBe(true)
     expect(calls).toEqual([{ account: 'vetgo-test', callId: 'ROOM:1', action: 'decline', body: {} }])
+  })
+})
+
+describe('Fanpage Web outgoing calls', () => {
+  const conv = { uuid: 'u1' }
+
+  it('calls, waits for the customer to answer, then follows the call to its end', async () => {
+    waits = [{ state: 'ringing' }, { state: 'answered', offer: 'v=0 reoffer' }, { state: 'ringing' }, { state: 'ended' }]
+    const res = await callFbwebCustomer(conv)
+    expect(res).toEqual({ ok: true, reason: 'done', error: '' })
+    expect(calls[0].action).toBe('start')
+    expect(calls[0].offer).toContain('maxaveragebitrate=20000')
+    expect(calls.slice(1).every((c) => c.action === 'wait' && c.callId === 'ROOM:9')).toBe(true)
+    // SDP answer khi gọi, rồi offer mới khi khách nghe máy (answer của nó không gửi đi).
+    expect(FakePC.last.steps).toContain('remote:answer:v=0 answer')
+    expect(FakePC.last.steps).toContain('remote:offer:v=0 reoffer')
+    expect(fbwebCall.state).toBe('idle')
+  })
+
+  it('hangs up by itself when the customer does not answer', async () => {
+    const res = await callFbwebCustomer(conv, 20)
+    expect(res.reason).toBe('no_answer')
+    expect(calls.at(-1).action).toBe('hangup')
+    expect(fbwebCall.state).toBe('idle')
+  })
+
+  it('reports a call that ends before the customer answers', async () => {
+    waits = [{ state: 'ended' }]
+    expect((await callFbwebCustomer(conv)).reason).toBe('ended')
+    expect(calls.some((c) => c.action === 'hangup')).toBe(false)
+  })
+
+  it('shows the gateway reason when the Page cannot call', async () => {
+    startFbwebCall.mockImplementationOnce(async () => {
+      const error = new Error('422')
+      error.response = { data: { error: 'Không thực hiện được: Trang chưa nhận cuộc gọi nào.' } }
+      throw error
+    })
+    const res = await callFbwebCustomer(conv)
+    expect(res).toEqual({ ok: false, reason: '', error: 'Không thực hiện được: Trang chưa nhận cuộc gọi nào.' })
+    expect(fbwebCall.state).toBe('idle')
+  })
+
+  it('stops ringing when the agent hangs up', async () => {
+    const pending = callFbwebCustomer(conv)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(fbwebCall.state).toBe('ringing_out')
+    await hangupFbwebCall()
+    expect((await pending).reason).toBe('hangup')
+    expect(calls.filter((c) => c.action === 'hangup').length).toBe(1)
   })
 })
