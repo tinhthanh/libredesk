@@ -1,6 +1,7 @@
 <template>
-  <!-- Fanpage Web (omnichannel docs/plan-fbweb-call.md, P3): khách gọi Trang qua Messenger. Đang đổ chuông
-       thì Nghe máy / Tắt chuông; đang nói thì thời lượng, micro, Cúp. Nghe bằng micro và loa của trình duyệt. -->
+  <!-- Fanpage Web (omnichannel docs/plan-fbweb-call.md, P3, P4): khách gọi Trang qua Messenger, hoặc Trang gọi
+       khách (📞). Đang đổ chuông thì Nghe máy / Tắt chuông; đang gọi hay đang nói thì trạng thái, micro, Cúp.
+       Nghe và nói bằng micro, loa của trình duyệt. -->
   <div v-if="visible" class="flex items-center gap-1">
     <template v-if="inCall">
       <span
@@ -8,7 +9,7 @@
         :class="fbwebCall.state === 'in_call' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-muted text-muted-foreground'"
         data-testid="fbweb-call-status"
       >
-        {{ fbwebCall.state === 'in_call' ? t('conversation.fbwebCall.talking', { time: formatCallDuration(elapsed) }) : t('conversation.fbwebCall.answering') }}
+        {{ statusText }}
       </span>
       <Button
         variant="ghost"
@@ -56,13 +57,29 @@
         <TooltipContent>{{ t('conversation.fbwebCall.silenceHint') }}</TooltipContent>
       </Tooltip>
     </template>
+    <!-- Trang gọi khách: chỉ khi không có cuộc gọi nào đang mở trên trình duyệt này. -->
+    <Tooltip v-else-if="fbwebCall.state === 'idle'">
+      <TooltipTrigger as-child>
+        <Button
+          variant="ghost"
+          class="w-11 h-11 md:w-8 md:h-8 p-0"
+          :aria-label="t('conversation.fbwebCall.start')"
+          :disabled="busy"
+          data-testid="fbweb-call-start"
+          @click="callCustomer"
+        >
+          <PhoneOutgoing class="w-4 h-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{{ t('conversation.fbwebCall.startHint') }}</TooltipContent>
+    </Tooltip>
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { BellOff, Mic, MicOff, Phone, PhoneOff } from 'lucide-vue-next'
+import { BellOff, Mic, MicOff, Phone, PhoneOff, PhoneOutgoing } from 'lucide-vue-next'
 import { Button } from '@shared-ui/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shared-ui/components/ui/tooltip'
 import { useConversationStore } from '@main/stores/conversation'
@@ -73,6 +90,7 @@ import { omniChannel } from '@main/utils/omnichannel.js'
 import { accountListed, branchCalls, callFeature, ensureCallFeature, formatCallDuration } from '@main/utils/omnichannelCall.js'
 import {
   answerFbwebCall,
+  callFbwebCustomer,
   declineFbwebCall,
   fbwebAccountOf,
   fbwebCall,
@@ -107,6 +125,14 @@ const ring = computed(() =>
 )
 const inCall = computed(() => fbwebCall.state !== 'idle' && fbwebCall.conversationUUID === conversation.value?.uuid)
 const elapsed = computed(() => (fbwebCall.answeredAt ? (now.value - fbwebCall.answeredAt) / 1000 : 0))
+const statusText = computed(() => {
+  switch (fbwebCall.state) {
+    case 'in_call': return t('conversation.fbwebCall.talking', { time: formatCallDuration(elapsed.value) })
+    case 'calling': return t('conversation.fbwebCall.calling')
+    case 'ringing_out': return t('conversation.fbwebCall.ringingOut')
+    default: return t('conversation.fbwebCall.answering')
+  }
+})
 
 watch(
   () => fbwebCall.state === 'in_call',
@@ -129,6 +155,23 @@ async function answer () {
     const description = MIC_ERRORS[res.reason] ? t(MIC_ERRORS[res.reason]) : res.error || t('conversation.fbwebCall.failed')
     emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description })
   }
+}
+
+// Kết quả cuộc gọi đi: báo nhân viên khi không nói chuyện được.
+const OUTGOING_TOASTS = { no_answer: 'conversation.fbwebCall.noAnswer', ended: 'conversation.fbwebCall.endedEarly' }
+
+async function callCustomer () {
+  if (!conversation.value) return
+  busy.value = true
+  const pending = callFbwebCustomer(conversation.value)
+  // Nút trở lại ngay khi cuộc gọi đã mở; kết quả cuối báo bằng toast.
+  setTimeout(() => (busy.value = false), 500)
+  const res = await pending
+  busy.value = false
+  if (res.ok || res.reason === 'busy' || res.reason === 'hangup') return
+  const key = MIC_ERRORS[res.reason] || OUTGOING_TOASTS[res.reason]
+  const description = key ? t(key) : res.error || t('conversation.fbwebCall.callFailed')
+  emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description })
 }
 
 async function silence () {

@@ -345,6 +345,9 @@ const branchCallAction = (account, callID, action) =>
 // Fanpage Web calls (gateway fbwebcalls.go): answer {offer} -> {answer, offer, tracks}, subscribe {tracks}, decline, hangup.
 const fbwebCallAction = (account, callID, action, body = {}) =>
   http.post(`/gw/fbweb-calls/${encodeURIComponent(account)}/${encodeURIComponent(callID)}/${action}`, body, { timeout: 40000 })
+// The Page calls the conversation's customer: {offer} -> {account, call_id, answer}.
+const startFbwebCall = (conversationUUID, offer) =>
+  http.post(`/gw/conversations/${encodeURIComponent(conversationUUID)}/fbweb-call`, { offer }, { timeout: 40000 })
 const getTags = () => http.get('/api/v1/tags')
 const importTags = (data) =>
   http.post('/api/v1/tags/import', data, {
@@ -714,6 +717,7 @@ export default {
   getRingingCalls,
   branchCallAction,
   fbwebCallAction,
+  startFbwebCall,
   editChannelMessage,
   getChannelPresence,
   resolveChannelRecipient,
