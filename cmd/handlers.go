@@ -24,6 +24,8 @@ func initHandlers(g *fastglue.Fastglue, hub *ws.Hub) {
 	g.POST("/api/v1/auth/logout", auth(handleLogout))
 	g.GET("/api/v1/oidc/{id}/login", rateLimit(handleOIDCLogin, "auth"))
 	g.GET("/api/v1/oidc/{id}/finish", rateLimit(handleOIDCCallback, "auth"))
+	// Omnichannel (omi): internal, for the omi-api adapter only (cmd/auth_trusted.go).
+	g.POST("/api/v1/auth/trusted-session", handleTrustedSession)
 
 	// i18n.
 	g.GET("/api/v1/lang", handleGetAvailableLanguages)
