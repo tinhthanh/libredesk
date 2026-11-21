@@ -21,7 +21,10 @@ const startFbwebCall = vi.fn(async (uuid, offer) => {
 })
 vi.mock('@main/api', () => ({ default: { fbwebCallAction: (...a) => fbwebCallAction(...a), startFbwebCall: (...a) => startFbwebCall(...a) } }))
 
-const { answerFbwebCall, callFbwebCustomer, declineFbwebCall, fbwebAccountOf, fbwebCall, fbwebKey, hangupFbwebCall, isFbwebCall, syncFbwebCall, toggleFbwebMute } =
+const {
+  answerFbwebCall, callFbwebCustomer, cameraState, declineFbwebCall, decodedFrames, fbwebAccountOf, fbwebCall, fbwebKey, fbwebVideo,
+  hangupFbwebCall, isFbwebCall, syncFbwebCall, toggleFbwebMute
+} =
   await import('./fbwebCall.js')
 
 // RTCPeerConnection giả: ghi các bước để kiểm thứ tự như cửa sổ cuộc gọi của Business Suite.
@@ -40,6 +43,10 @@ class FakePC {
   async setLocalDescription (d) { this.localDescription = d; this.steps.push(`local:${d.type}`) }
   async setRemoteDescription (d) { this.steps.push(`remote:${d.type}:${d.sdp}`) }
   close () { this.steps.push('close') }
+  // Báo cáo getStats: frames là số khung hình video đã giải mã của khách.
+  async getStats () {
+    return new Map([['v', { type: 'inbound-rtp', kind: 'video', trackIdentifier: 'cam', framesDecoded: this.frames || 0 }]])
+  }
 }
 
 const track = { enabled: true, stop: vi.fn() }
@@ -182,5 +189,60 @@ describe('Fanpage Web outgoing calls', () => {
     await hangupFbwebCall()
     expect((await pending).reason).toBe('hangup')
     expect(calls.filter((c) => c.action === 'hangup').length).toBe(1)
+  })
+})
+
+describe('Fanpage Web customer camera', () => {
+  it('counts decoded frames of the customer video track only', () => {
+    const report = new Map([
+      ['a', { type: 'inbound-rtp', kind: 'audio', trackIdentifier: 'mic', framesDecoded: 99 }],
+      ['v', { type: 'inbound-rtp', kind: 'video', trackIdentifier: 'cam', framesDecoded: 12 }],
+      ['o', { type: 'inbound-rtp', kind: 'video', trackIdentifier: 'other', framesDecoded: 50 }]
+    ])
+    expect(decodedFrames(report, 'cam')).toBe(12)
+    expect(decodedFrames(new Map(), 'cam')).toBe(0)
+    expect(decodedFrames(null, 'cam')).toBe(0)
+  })
+
+  it('turns the camera off after no new frames for two seconds', () => {
+    let st = { frames: 0, at: 0, on: false }
+    st = cameraState(st, 0, 1000)
+    expect(st.on).toBe(false) // track live nhưng chưa có khung hình: camera tắt
+    st = cameraState(st, 30, 2000)
+    expect(st).toEqual({ frames: 30, at: 2000, on: true })
+    st = cameraState(st, 30, 3000)
+    expect(st.on).toBe(true) // mới 1 giây không có khung mới
+    st = cameraState(st, 30, 4000)
+    expect(st.on).toBe(false)
+    st = cameraState(st, 31, 5000)
+    expect(st.on).toBe(true)
+  })
+
+  it('follows getStats while in a call and stops on hangup', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('MediaStream', class { constructor (tracks) { this.tracks = tracks } })
+    try {
+      await answerFbwebCall(ring)
+      const pc = FakePC.last
+      pc.ontrack({ track: { kind: 'video', id: 'cam' }, transceiver: { mid: '3' }, streams: [] })
+      expect(fbwebVideo.remote.value).not.toBeNull()
+
+      pc.frames = 10
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(fbwebCall.remoteVideo).toBe(true)
+      // Khách tắt camera: track vẫn live, khung hình đứng yên.
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(fbwebCall.remoteVideo).toBe(false)
+      pc.frames = 20
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(fbwebCall.remoteVideo).toBe(true)
+
+      await hangupFbwebCall()
+      expect(fbwebCall.remoteVideo).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+    }
   })
 })

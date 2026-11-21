@@ -13,6 +13,11 @@ import api from '@main/api'
 
 export const FBWEB_CHANNEL = 'fb-bridge-web'
 export const OUTGOING_RING_MS = 60 * 1000
+// Camera của khách: Facebook giữ track video live và không mute khi khách tắt camera, nên
+// onmute/onunmute không báo được. Đếm khung hình đã giải mã (getStats) mỗi giây; không có khung
+// mới trong CAMERA_IDLE_MS thì coi là camera tắt.
+export const CAMERA_POLL_MS = 1000
+export const CAMERA_IDLE_MS = 2000
 
 export const fbwebCall = reactive({
   key: '', // `${account}:${call_id}` như danh sách cuộc gọi của gateway
@@ -38,6 +43,7 @@ let pc = null
 let mic = null
 let audio = null
 let seq = 0
+let cameraTimer = null
 
 export const fbwebKey = (c) => `${c.account}:${c.call_id}`
 
@@ -59,7 +65,46 @@ function munge (sdp) {
   return sdp.replace(/a=fmtp:111 [^\r\n]*/, 'a=fmtp:111 ' + OPUS_FMTP)
 }
 
+// Số khung hình video đã giải mã của track trong một báo cáo getStats (0 nếu chưa có).
+export function decodedFrames (report, trackId) {
+  let frames = 0
+  report?.forEach?.((s) => {
+    if (s.type !== 'inbound-rtp' || (s.kind || s.mediaType) !== 'video') return
+    if (trackId && s.trackIdentifier && s.trackIdentifier !== trackId) return
+    frames = Math.max(frames, s.framesDecoded || 0)
+  })
+  return frames
+}
+
+// cameraState: trạng thái mới từ lần đếm trước { frames, at, on } và số khung hình hiện tại.
+export function cameraState (prev, frames, now, idleMs = CAMERA_IDLE_MS) {
+  if (frames > prev.frames) return { frames, at: now, on: true }
+  return { frames: Math.max(frames, prev.frames), at: prev.at, on: prev.on && now - prev.at < idleMs }
+}
+
+function stopCameraWatch () {
+  clearInterval(cameraTimer)
+  cameraTimer = null
+}
+
+function watchCamera (track) {
+  stopCameraWatch()
+  const peer = pc
+  let state = { frames: 0, at: Date.now(), on: false }
+  cameraTimer = setInterval(async () => {
+    if (pc !== peer) return stopCameraWatch()
+    try {
+      const report = await peer.getStats()
+      state = cameraState(state, decodedFrames(report, track.id), Date.now())
+      if (pc === peer) fbwebCall.remoteVideo = state.on
+    } catch {
+      // getStats lỗi một lần (peer đang đóng): lần sau thử lại.
+    }
+  }, CAMERA_POLL_MS)
+}
+
 function cleanup () {
+  stopCameraWatch()
   if (pc) {
     pc.ontrack = null
     pc.onconnectionstatechange = null
@@ -100,8 +145,7 @@ async function openPeer () {
     } else if (e.track.kind === 'video' && e.transceiver?.mid === '3') {
       // mid 3: camera của khách (SDP offer mới của server). Có hình khi khách bật camera.
       fbwebVideo.remote.value = new MediaStream([e.track])
-      e.track.onunmute = () => { fbwebCall.remoteVideo = true }
-      e.track.onmute = () => { fbwebCall.remoteVideo = false }
+      watchCamera(e.track)
     }
   }
   pc.onconnectionstatechange = () => {
