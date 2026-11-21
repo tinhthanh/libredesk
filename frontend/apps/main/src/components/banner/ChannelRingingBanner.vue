@@ -65,6 +65,7 @@ import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { branchCallAction, branchCalls, callFeature, ensureCallFeature, pruneDialing } from '@main/utils/omnichannelCall.js'
 import { audioWanted, branchAudio, needsCable, readyForCall, releaseUnusedMic, stopBranchAudio } from '@main/utils/branchCallAudio.js'
 import { answerFbwebCall, declineFbwebCall, fbwebCall, fbwebSupported, isFbwebCall, syncFbwebCall } from '@main/utils/fbwebCall.js'
+import { later } from '@main/utils/backgroundTimer.js'
 
 const POLL_MS = 3000
 // Gateway chưa có kênh SMS (404): hỏi lại thưa hơn. Lỗi khác (mạng chập chờn): thử lại sớm.
@@ -77,8 +78,23 @@ const userStore = useUserStore()
 const emitter = useEmitter()
 const busy = ref(false)
 const announced = new Set()
-let timer = null
+// Hẹn lần hỏi kế: tab ẩn thì hẹn trong Web Worker (backgroundTimer.js), vì Chrome hãm setTimeout
+// của tab chạy nền còn mỗi phút một lần và lỡ cuộc gọi Facebook (đổ chuông khoảng 60 giây).
+let cancelTimer = null
+let dueAt = 0
+let polling = false
 let stopped = false
+
+function schedule (ms) {
+  cancelTimer?.()
+  cancelTimer = stopped ? null : later(poll, ms)
+  dueAt = Date.now() + ms
+}
+
+// Tab vừa ẩn (hay hiện lại): hẹn lại lần hỏi đang chờ bằng loại hẹn giờ hợp với trạng thái mới.
+function onVisibility () {
+  if (!polling && cancelTimer) schedule(Math.max(0, dueAt - Date.now()))
+}
 
 // Thanh này chỉ cho khách gọi tới đang đổ chuông; cuộc gọi đang nói hiện trong hội thoại.
 const ringing = computed(() => branchCalls.list.filter((c) => c.incoming && c.state === 'ringing'))
@@ -143,6 +159,8 @@ async function act (c, action) {
 }
 
 async function poll () {
+  cancelTimer = null
+  polling = true
   let next = POLL_MS
   try {
     if (userStore.can('messages:read')) {
@@ -171,12 +189,18 @@ async function poll () {
     branchCalls.list = []
     next = error?.response?.status === 404 ? IDLE_MS : RETRY_MS
   }
-  if (!stopped) timer = setTimeout(poll, next)
+  polling = false
+  if (!stopped) schedule(next)
 }
 
-onMounted(poll)
+onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibility)
+  poll()
+})
 onBeforeUnmount(() => {
   stopped = true
-  clearTimeout(timer)
+  document.removeEventListener('visibilitychange', onVisibility)
+  cancelTimer?.()
+  cancelTimer = null
 })
 </script>
