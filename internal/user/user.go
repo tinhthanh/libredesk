@@ -89,6 +89,8 @@ type queries struct {
 	UpdateAgent                   *sqlx.Stmt `query:"update-agent"`
 	UpdateCustomAttributes        *sqlx.Stmt `query:"update-custom-attributes"`
 	UpsertCustomAttributes        *sqlx.Stmt `query:"upsert-custom-attributes"`
+	GetAgentIDByOmiSub            *sqlx.Stmt `query:"get-agent-id-by-omi-sub"`
+	GetUserOmiSub                 *sqlx.Stmt `query:"get-user-omi-sub"`
 	UpdateAvatar                  *sqlx.Stmt `query:"update-avatar"`
 	UpdateAvailability            *sqlx.Stmt `query:"update-availability"`
 	UpdateLastActiveAt            *sqlx.Stmt `query:"update-last-active-at"`
@@ -405,6 +407,30 @@ func (u *Manager) IsOffline(id int) bool {
 		return true
 	}
 	return status == "offline"
+}
+
+// GetAgentIDByOmiSub returns the agent linked to a Vetgo user (custom attribute omi_sub, set by the
+// omnichannel trusted-session endpoint), or 0 when there is none.
+func (u *Manager) GetAgentIDByOmiSub(sub string) (int, error) {
+	var id int
+	if err := u.q.GetAgentIDByOmiSub.Get(&id, sub); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		u.lo.Error("error fetching agent by omi_sub", "error", err)
+		return 0, envelope.NewError(envelope.GeneralError, u.i18n.T("globals.messages.somethingWentWrong"), nil)
+	}
+	return id, nil
+}
+
+// GetOmiSub returns the Vetgo user linked to a user (custom attribute omi_sub), or "".
+func (u *Manager) GetOmiSub(id int) (string, error) {
+	var sub string
+	if err := u.q.GetUserOmiSub.Get(&sub, id); err != nil {
+		u.lo.Error("error fetching omi_sub", "error", err)
+		return "", envelope.NewError(envelope.GeneralError, u.i18n.T("globals.messages.somethingWentWrong"), nil)
+	}
+	return sub, nil
 }
 
 // SaveCustomAttributes sets or merges custom attributes for a user.

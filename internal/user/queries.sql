@@ -104,6 +104,16 @@ SET custom_attributes = $2,
 updated_at = now()
 WHERE id = $1;
 
+-- name: get-agent-id-by-omi-sub
+-- omnichannel (omi): agent created or linked for a Vetgo user by trusted-session.
+SELECT id FROM users
+WHERE deleted_at IS NULL AND type = 'agent' AND custom_attributes->>'omi_sub' = $1
+ORDER BY id ASC
+LIMIT 1;
+
+-- name: get-user-omi-sub
+SELECT COALESCE(custom_attributes->>'omi_sub', '') FROM users WHERE id = $1;
+
 -- name: upsert-custom-attributes
 UPDATE users
 SET custom_attributes = COALESCE(custom_attributes, '{}'::jsonb) || $2,

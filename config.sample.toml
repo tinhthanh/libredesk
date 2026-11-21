@@ -214,3 +214,18 @@ requests_per_minute = 100
 [rate_limit.media]
 enabled = true
 requests_per_minute = 300
+
+# Omnichannel (omi): POST /api/v1/auth/trusted-session, used only by the clinic's omi-api adapter
+# to open a session for a Vetgo user. Off while secret is empty. Set the secret through the
+# environment (LIBREDESK_OMI_API__SECRET, at least 32 characters), never in this file. The route
+# answers 404 unless the connection comes from trusted_ips (the connection address; header IPs are
+# never read) with the X-Omi-Api-Secret header.
+[omi_api]
+secret = ""
+trusted_ips = []
+# Create a missing agent on first sign-in (and only when the adapter asks for it).
+auto_create_agents = true
+# Role given to a created agent, by the omi_role claim. An existing agent keeps its roles.
+[omi_api.role_map]
+admin = "Admin"
+agent = "Agent"
