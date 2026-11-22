@@ -47,3 +47,15 @@ func TestWSTimeKeepsSubSecondPrecision(t *testing.T) {
 		t.Fatalf("WS %q differs from REST %s", s, b)
 	}
 }
+
+func TestWSMetaFields(t *testing.T) {
+	got := wsMetaFields(json.RawMessage(`{"echo_id":"e1","omni_event":"call","to":["a@b"],"x":1}`))
+	if len(got) != 2 || got["echo_id"] != "e1" || got["omni_event"] != "call" {
+		t.Fatalf("wsMetaFields = %v", got)
+	}
+	for _, raw := range []string{"", "null", "{}", "not json", `{"omni_event":""}`, `{"omni_event":3}`} {
+		if got := wsMetaFields(json.RawMessage(raw)); len(got) != 0 {
+			t.Fatalf("wsMetaFields(%q) = %v", raw, got)
+		}
+	}
+}

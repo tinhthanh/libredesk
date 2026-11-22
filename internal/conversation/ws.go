@@ -41,13 +41,8 @@ func (m *Manager) BroadcastNewMessage(message *cmodels.Message, conv *cmodels.Co
 		"conversation":      convToBroadcast(conv),
 	}
 
-	var meta map[string]any
-	if len(message.Meta) > 0 {
-		if err := json.Unmarshal(message.Meta, &meta); err == nil {
-			if echoID, ok := meta["echo_id"].(string); ok && echoID != "" {
-				data["echo_id"] = echoID
-			}
-		}
+	for k, v := range wsMetaFields(message.Meta) {
+		data[k] = v
 	}
 
 	userIDs := m.AuthorizedConnectedAgentIDs(conv.AssignedUserID, conv.AssignedTeamID)
@@ -284,4 +279,23 @@ func (m *Manager) broadcastListItem(uuid string) {
 		return
 	}
 	m.BroadcastNewConversation(&item)
+}
+
+// wsMetaFields: the message meta fields clients need with new_message: echo_id (the agent's own
+// optimistic message) and omni_event (a note the omnichannel gateway wrote).
+func wsMetaFields(raw json.RawMessage) map[string]string {
+	out := map[string]string{}
+	if len(raw) == 0 {
+		return out
+	}
+	var meta map[string]any
+	if json.Unmarshal(raw, &meta) != nil {
+		return out
+	}
+	for _, k := range []string{"echo_id", "omni_event"} {
+		if v, ok := meta[k].(string); ok && v != "" {
+			out[k] = v
+		}
+	}
+	return out
 }

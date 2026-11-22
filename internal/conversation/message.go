@@ -464,8 +464,22 @@ func (m *Manager) MarkMessageAsPending(uuid string) error {
 
 // SendPrivateNote inserts a private message in a conversation.
 func (m *Manager) SendPrivateNote(media []mmodels.Media, senderID int, conversationUUID, content string, mentions []models.MentionInput) (models.Message, error) {
+	return m.SendPrivateNoteWithMeta(media, senderID, conversationUUID, content, mentions, nil)
+}
+
+// SendPrivateNoteWithMeta is SendPrivateNote with message meta (e.g. omni_event of a gateway note).
+func (m *Manager) SendPrivateNoteWithMeta(media []mmodels.Media, senderID int, conversationUUID, content string, mentions []models.MentionInput, meta map[string]any) (models.Message, error) {
 	// Best-effort render template variables before saving.
 	content = m.renderMessageContent(conversationUUID, senderID, content)
+	var metaJSON json.RawMessage
+	if len(meta) > 0 {
+		b, err := json.Marshal(meta)
+		if err != nil {
+			m.lo.Error("error marshalling private note meta", "error", err)
+			return models.Message{}, envelope.NewError(envelope.GeneralError, m.i18n.T("globals.messages.somethingWentWrong"), nil)
+		}
+		metaJSON = b
+	}
 
 	message := models.Message{
 		ConversationUUID: conversationUUID,
@@ -477,6 +491,7 @@ func (m *Manager) SendPrivateNote(media []mmodels.Media, senderID int, conversat
 		ContentType:      models.ContentTypeHTML,
 		Private:          true,
 		Media:            media,
+		Meta:             metaJSON,
 	}
 	if err := m.InsertMessage(&message); err != nil {
 		return models.Message{}, err
