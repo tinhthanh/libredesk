@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	cmodels "github.com/abhinavxd/libredesk/internal/conversation/models"
 	"github.com/volatiletech/null/v9"
@@ -29,5 +30,20 @@ func TestConvToBroadcastOmitsPerUserFields(t *testing.T) {
 	}
 	if got, _ := json.Marshal(convToBroadcast(nil)); string(got) != "null" {
 		t.Fatalf("nil conv = %s", got)
+	}
+}
+
+func TestWSTimeKeepsSubSecondPrecision(t *testing.T) {
+	at := time.Date(2026, 11, 22, 10, 0, 10, 800_000_000, time.UTC)
+	s := wsTime(at)
+	if s != "2026-11-22T10:00:10.8Z" {
+		t.Fatalf("wsTime = %q", s)
+	}
+	back, err := time.Parse(time.RFC3339, s)
+	if err != nil || !back.Equal(at) {
+		t.Fatalf("parse %q = %v, %v", s, back, err)
+	}
+	if b, _ := json.Marshal(at); string(b) != `"`+s+`"` {
+		t.Fatalf("WS %q differs from REST %s", s, b)
 	}
 }

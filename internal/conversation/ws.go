@@ -36,7 +36,7 @@ func (m *Manager) BroadcastNewMessage(message *cmodels.Message, conv *cmodels.Co
 		"uuid":              message.UUID,
 		"type":              message.Type,
 		"preview":           preview,
-		"created_at":        message.CreatedAt.Format(time.RFC3339),
+		"created_at":        wsTime(message.CreatedAt),
 		"sender_type":       message.SenderType,
 		"conversation":      convToBroadcast(conv),
 	}
@@ -264,4 +264,24 @@ func convToBroadcast(conv *cmodels.ConversationListItem) *broadcastConv {
 		return nil
 	}
 	return &broadcastConv{ConversationListItem: conv}
+}
+
+// wsTime formats a timestamp for WS payloads with sub-second precision, matching the REST API
+// (time.Time marshals as RFC3339Nano), so clients can order two events within the same second.
+func wsTime(t time.Time) string {
+	return t.Format(time.RFC3339Nano)
+}
+
+// broadcastListItem pushes the conversation's full list item as `new_conversation` to every
+// authorized connected agent. `conversation_update` only reaches clients subscribed to the
+// conversation, so after a status change (reopen, resolve, snooze, close) an agent whose list
+// has not loaded it could not insert it. A status change does not change who may see the
+// conversation, so no previous state is needed.
+func (m *Manager) broadcastListItem(uuid string) {
+	item, err := m.GetConversationListItem(uuid)
+	if err != nil {
+		m.lo.Error("error fetching conversation list item for status broadcast", "uuid", uuid, "error", err)
+		return
+	}
+	m.BroadcastNewConversation(&item)
 }

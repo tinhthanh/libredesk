@@ -559,7 +559,7 @@ func (c *Manager) UpdateConversationContactLastSeen(uuid string) error {
 	}
 
 	// Broadcast the property update to all subscribers.
-	c.BroadcastConversationUpdate(uuid, map[string]any{"contact_last_seen_at": time.Now().Format(time.RFC3339)})
+	c.BroadcastConversationUpdate(uuid, map[string]any{"contact_last_seen_at": wsTime(time.Now())})
 	return nil
 }
 
@@ -693,6 +693,7 @@ func (c *Manager) ReOpenConversation(conversationUUID string, actor umodels.User
 	}
 
 	c.BroadcastConversationUpdate(conversationUUID, map[string]any{"status": models.StatusOpen})
+	c.broadcastListItem(conversationUUID)
 
 	if err := c.RecordStatusChange(models.StatusOpen, conversationUUID, actor); err != nil {
 		return err
@@ -731,7 +732,7 @@ func (c *Manager) UpdateConversationWaitingSince(conversationUUID string, at *ti
 	rows, _ := res.RowsAffected()
 	if rows > 0 {
 		if at != nil {
-			c.BroadcastConversationUpdate(conversationUUID, map[string]any{"waiting_since": at.Format(time.RFC3339)})
+			c.BroadcastConversationUpdate(conversationUUID, map[string]any{"waiting_since": wsTime(*at)})
 		} else {
 			c.BroadcastConversationUpdate(conversationUUID, map[string]any{"waiting_since": nil})
 		}
@@ -1033,7 +1034,7 @@ func (c *Manager) UpdateConversationStatus(uuid string, statusID int, status, sn
 		if resolvedAt.IsZero() {
 			resolvedAt = time.Now()
 		}
-		agentData["resolved_at"] = resolvedAt.Format(time.RFC3339)
+		agentData["resolved_at"] = wsTime(resolvedAt)
 		if c.aiAgent != nil {
 			c.aiAgent.HandleConversationResolved(conversationBeforeChange.ID)
 		}
@@ -1053,14 +1054,15 @@ func (c *Manager) UpdateConversationStatus(uuid string, statusID int, status, sn
 		if conversation.ID != 0 && !conversation.ClosedAt.Time.IsZero() {
 			closedAt = conversation.ClosedAt.Time
 		}
-		agentData["closed_at"] = closedAt.Format(time.RFC3339)
+		agentData["closed_at"] = wsTime(closedAt)
 	}
 	if status == models.StatusSnoozed {
-		agentData["snoozed_until"] = snoozeUntil.Format(time.RFC3339)
+		agentData["snoozed_until"] = wsTime(snoozeUntil)
 	} else if oldStatus == models.StatusSnoozed {
 		agentData["snoozed_until"] = nil
 	}
 	c.BroadcastConversationUpdate(uuid, agentData)
+	c.broadcastListItem(uuid)
 
 	if conversation.ID != 0 {
 		c.automation.EvaluateConversationUpdateRules(conversation, amodels.EventConversationStatusChange, amodels.PreviousValues(conversationBeforeChange), actor)
@@ -2240,7 +2242,7 @@ func nullTimeOrNil(t null.Time) any {
 	if !t.Valid || t.Time.IsZero() {
 		return nil
 	}
-	return t.Time.Format(time.RFC3339)
+	return wsTime(t.Time)
 }
 
 func renderTagFilter(operator, value string, paramIndex int) (string, []any, error) {
