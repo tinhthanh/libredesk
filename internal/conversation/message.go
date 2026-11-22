@@ -209,7 +209,7 @@ func (m *Manager) sendOutgoingMessage(message models.Message) {
 		}
 
 		now := time.Now()
-		nowStr := now.Format(time.RFC3339)
+		nowStr := wsTime(now)
 		wsData := map[string]any{"last_reply_at": nowStr, "waiting_since": nil}
 
 		var isFirstReply bool
@@ -228,7 +228,7 @@ func (m *Manager) sendOutgoingMessage(message models.Message) {
 		if err != nil && !errors.Is(err, sla.ErrLatestSLAEventNotFound) {
 			m.lo.Error("error setting next response SLA event `met_at`", "conversation_id", conversation.ID, "metric", sla.MetricNextResponse, "applied_sla_id", conversation.AppliedSLAID.Int, "error", err)
 		} else if !metAt.IsZero() {
-			wsData["next_response_met_at"] = metAt.Format(time.RFC3339)
+			wsData["next_response_met_at"] = wsTime(metAt)
 		}
 
 		m.BroadcastConversationUpdate(message.ConversationUUID, wsData)
@@ -1436,7 +1436,7 @@ func (m *Manager) ProcessIncomingMessageHooks(conversationUUID string, isNewConv
 		} else if !deadline.IsZero() {
 			m.lo.Info("next response SLA event created for conversation", "conversation_id", conversation.ID, "deadline", deadline, "sla_policy_id", conversation.SLAPolicyID.Int)
 			m.BroadcastConversationUpdate(conversationUUID, map[string]any{
-				"next_response_deadline_at": deadline.Format(time.RFC3339),
+				"next_response_deadline_at": wsTime(deadline),
 				"next_response_met_at":      nil,
 			})
 		}
