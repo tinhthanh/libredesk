@@ -31,7 +31,7 @@
       >
         <Phone class="w-3.5 h-3.5 mr-1" />{{ t('conversation.dial.answer') }}
       </Button>
-      <!-- Fanpage Web: chỉ tắt chuông ở Libredesk, khách vẫn nghe chuông tới khi Facebook thôi. -->
+      <!-- Fanpage Web: chỉ tắt chuông trên trình duyệt này, nhân viên khác vẫn đổ chuông; khách vẫn nghe chuông tới khi Facebook thôi. -->
       <Button
         size="sm"
         variant="destructive"
@@ -64,7 +64,7 @@ import { useEmitter } from '@main/composables/useEmitter'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
 import { branchCallAction, branchCalls, callFeature, ensureCallFeature, pruneDialing } from '@main/utils/omnichannelCall.js'
 import { audioWanted, branchAudio, needsCable, readyForCall, releaseUnusedMic, stopBranchAudio } from '@main/utils/branchCallAudio.js'
-import { answerFbwebCall, declineFbwebCall, fbwebCall, fbwebSupported, isFbwebCall, syncFbwebCall } from '@main/utils/fbwebCall.js'
+import { answerFbwebCall, fbwebCall, fbwebSupported, isFbwebCall, isFbwebSilenced, pruneFbwebSilenced, silenceFbwebCall, syncFbwebCall } from '@main/utils/fbwebCall.js'
 import { later } from '@main/utils/backgroundTimer.js'
 
 const POLL_MS = 3000
@@ -97,7 +97,8 @@ function onVisibility () {
 }
 
 // Thanh này chỉ cho khách gọi tới đang đổ chuông; cuộc gọi đang nói hiện trong hội thoại.
-const ringing = computed(() => branchCalls.list.filter((c) => c.incoming && c.state === 'ringing'))
+// Cuộc gọi Fanpage Web đã tắt chuông trên trình duyệt này thì ẩn (nhân viên khác vẫn thấy).
+const ringing = computed(() => branchCalls.list.filter((c) => c.incoming && c.state === 'ringing' && !isFbwebSilenced(c)))
 
 // Fanpage Web: number là id Facebook của khách, chỉ hiện tên.
 const who = (c) => {
@@ -115,8 +116,12 @@ const open = (c) => router.push({ name: 'inbox-conversation', params: { type: 'a
 const MIC_ERRORS = { mic: 'conversation.call.micDenied', insecure: 'conversation.dial.audioInsecure' }
 
 async function actFbweb (c, action) {
+  if (action !== 'answer') {
+    silenceFbwebCall(c)
+    return
+  }
   busy.value = true
-  const res = action === 'answer' ? await answerFbwebCall(c) : await declineFbwebCall(c)
+  const res = await answerFbwebCall(c)
   busy.value = false
   if (res.ok) {
     if (action === 'answer' && c.conversation_uuid) open(c)
@@ -181,6 +186,7 @@ async function poll () {
       for (const k of announced) if (!keys.has(k)) announced.delete(k)
       pruneDialing()
       branchCalls.list = list
+      pruneFbwebSilenced(list)
       syncFbwebCall(list)
       // Cuộc gọi đang nghe trên máy tính đã xong: tắt micro, đóng âm thanh (chỉ khi hỏi được danh sách).
       if (branchAudio.key && !list.some((c) => `${c.account}:${c.call_id}` === branchAudio.key)) stopBranchAudio()

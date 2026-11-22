@@ -1715,7 +1715,7 @@
   "conversation.ringing.hidden": "Số ẩn",
   "conversation.fbwebCall.customer": "Khách Fanpage",
   "conversation.fbwebCall.silence": "Tắt chuông",
-  "conversation.fbwebCall.silenceHint": "Chỉ tắt chuông trên Libredesk. Khách vẫn nghe chuông tới khi Facebook ngừng (như một quản trị viên khác của Trang từ chối).",
+  "conversation.fbwebCall.silenceHint": "Chỉ tắt chuông trên máy này, nhân viên khác vẫn nghe máy được. Khách vẫn nghe chuông tới khi Facebook ngừng.",
   "conversation.fbwebCall.answering": "Đang nghe máy…",
   "conversation.fbwebCall.talking": "Đang nói · {time}",
   "conversation.fbwebCall.failed": "Không nghe máy được. Thử lại hoặc nghe trên Business Suite.",
