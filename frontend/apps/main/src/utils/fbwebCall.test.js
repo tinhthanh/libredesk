@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const calls = []
 // waits: trạng thái lần lượt mà wait trả (cuộc gọi đi).
 let waits = []
-const fbwebCallAction = vi.fn(async (account, callId, action, body) => {
+async function defaultAction (account, callId, action, body) {
   calls.push({ account, callId, action, body })
   if (action === 'answer') {
     return { data: { answer: 'v=0 answer', offer: 'v=0 reoffer', tracks: [{ id: 'a1', video: false, on: true }] } }
@@ -14,7 +14,8 @@ const fbwebCallAction = vi.fn(async (account, callId, action, body) => {
     return { data: waits.length ? waits.shift() : { state: 'ringing' } }
   }
   return { data: { ok: true } }
-})
+}
+const fbwebCallAction = vi.fn(defaultAction)
 const startFbwebCall = vi.fn(async (uuid, offer) => {
   calls.push({ action: 'start', uuid, offer })
   return { data: { account: 'vetgo-test', call_id: 'ROOM:9', answer: 'v=0 answer' } }
@@ -123,17 +124,62 @@ describe('Fanpage Web calls', () => {
     expect(fbwebCall.state).toBe('idle')
   })
 
-  it('hangs up when Facebook refuses midway, with the gateway reason', async () => {
-    fbwebCallAction.mockImplementationOnce(async () => {
-      const error = new Error('422')
-      error.response = { data: { error: 'Không thực hiện được: cuộc gọi đã kết thúc.' } }
-      throw error
+  it('does not hang up when the answer is refused (a colleague has the call), with the gateway reason', async () => {
+    for (const [status, msg] of [
+      [409, 'Một nhân viên khác đang nghe máy cuộc gọi này.'],
+      [422, 'Không thực hiện được: cuộc gọi đã được nghe trên Libredesk.'],
+      [404, 'Cuộc gọi đã kết thúc.']
+    ]) {
+      calls.length = 0
+      fbwebCallAction.mockImplementationOnce(async () => {
+        const error = new Error(String(status))
+        error.response = { status, data: { error: msg } }
+        throw error
+      })
+      const res = await answerFbwebCall(ring)
+      expect(res).toEqual({ ok: false, reason: '', error: msg })
+      // Cúp lúc này sẽ cắt cuộc gọi của đồng nghiệp trên cùng phiên Trang.
+      expect(calls).toEqual([])
+      expect(fbwebCall.state).toBe('idle')
+    }
+  })
+
+  it('hangs up when the call breaks after joining, or when the join may have happened', async () => {
+    // Đã tham gia, subscribe hỏng: cúp để khách không chờ một máy câm.
+    fbwebCallAction.mockImplementation(async (account, callId, action, body) => {
+      calls.push({ account, callId, action, body })
+      if (action === 'answer') return { data: { answer: 'v=0 answer', offer: 'v=0 reoffer', tracks: [] } }
+      if (action === 'subscribe') {
+        const error = new Error('422')
+        error.response = { status: 422, data: { error: 'Không thực hiện được: Facebook từ chối.' } }
+        throw error
+      }
+      return { data: { ok: true } }
     })
-    const res = await answerFbwebCall(ring)
-    expect(res.ok).toBe(false)
-    expect(res.error).toBe('Không thực hiện được: cuộc gọi đã kết thúc.')
-    expect(calls.map((c) => c.action)).toEqual(['hangup'])
-    expect(fbwebCall.state).toBe('idle')
+    try {
+      let res = await answerFbwebCall(ring)
+      expect(res.ok).toBe(false)
+      expect(calls.map((c) => c.action)).toEqual(['answer', 'subscribe', 'hangup'])
+
+      // Gateway hết giờ chờ Facebook (504): có thể đã tham gia, nên vẫn cúp.
+      calls.length = 0
+      fbwebCallAction.mockImplementation(async (account, callId, action, body) => {
+        calls.push({ account, callId, action, body })
+        if (action === 'answer') {
+          const error = new Error('504')
+          error.response = { status: 504, data: { error: 'Facebook không trả lời kịp.' } }
+          throw error
+        }
+        return { data: { ok: true } }
+      })
+      res = await answerFbwebCall(ring)
+      expect(res.error).toBe('Facebook không trả lời kịp.')
+      expect(calls.map((c) => c.action)).toEqual(['answer', 'hangup'])
+      expect(fbwebCall.state).toBe('idle')
+    } finally {
+      fbwebCallAction.mockReset()
+      fbwebCallAction.mockImplementation(defaultAction)
+    }
   })
 
   it('silences a ringing call on this browser only, without telling the gateway', () => {

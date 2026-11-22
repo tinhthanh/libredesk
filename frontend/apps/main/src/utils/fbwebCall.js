@@ -185,9 +185,11 @@ export async function answerFbwebCall (c) {
     if (my === seq) cleanup()
     return { ok: false, reason: 'mic', error: '' }
   }
+  let joined = false
   try {
     const offer = await openPeer()
     const { data } = await api.fbwebCallAction(c.account, c.call_id, 'answer', { offer })
+    joined = true
     if (my !== seq || !pc) return { ok: false, reason: '', error: '' }
     await pc.setRemoteDescription({ type: 'answer', sdp: data.answer })
     await applyServerOffer(data.offer)
@@ -199,8 +201,13 @@ export async function answerFbwebCall (c) {
   } catch (error) {
     const msg = errorOf(error)
     if (my === seq) {
-      // Đã gửi lời tham gia mà hỏng giữa chừng: cúp để khách không chờ một máy câm.
-      if (pc) api.fbwebCallAction(c.account, c.call_id, 'hangup', {}).catch(() => {})
+      // Lời tham gia bị từ chối (404 đã kết thúc, 409 đồng nghiệp đang hay đã nghe máy, 422 agent từ
+      // chối): mình chưa tham gia, và cúp lúc này là cúp phòng trên phiên Trang dùng chung, cắt cuộc
+      // gọi của đồng nghiệp. Chỉ cúp khi đã tham gia (hay có thể đã tham gia: lỗi mạng, 5xx) mà hỏng
+      // giữa chừng, để khách không chờ một máy câm.
+      const status = error?.response?.status || 0
+      const refused = !joined && status >= 400 && status < 500
+      if (pc && !refused) api.fbwebCallAction(c.account, c.call_id, 'hangup', {}).catch(() => {})
       cleanup()
     }
     return { ok: false, reason: '', error: msg }
