@@ -1715,7 +1715,7 @@
   "conversation.ringing.hidden": "Hidden number",
   "conversation.fbwebCall.customer": "Page customer",
   "conversation.fbwebCall.silence": "Silence",
-  "conversation.fbwebCall.silenceHint": "Only stops ringing in Libredesk. The customer keeps hearing the ring until Facebook stops it (like another Page admin declining).",
+  "conversation.fbwebCall.silenceHint": "Only stops ringing on this device; other agents can still answer. The customer keeps hearing the ring until Facebook stops it.",
   "conversation.fbwebCall.answering": "Answering…",
   "conversation.fbwebCall.talking": "In call · {time}",
   "conversation.fbwebCall.failed": "Could not answer. Try again or answer in Business Suite.",

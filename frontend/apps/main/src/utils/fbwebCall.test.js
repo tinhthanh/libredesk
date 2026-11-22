@@ -22,8 +22,8 @@ const startFbwebCall = vi.fn(async (uuid, offer) => {
 vi.mock('@main/api', () => ({ default: { fbwebCallAction: (...a) => fbwebCallAction(...a), startFbwebCall: (...a) => startFbwebCall(...a) } }))
 
 const {
-  answerFbwebCall, callFbwebCustomer, cameraState, declineFbwebCall, decodedFrames, fbwebAccountOf, fbwebCall, fbwebKey, fbwebVideo,
-  hangupFbwebCall, isFbwebCall, syncFbwebCall, toggleFbwebMute
+  answerFbwebCall, callFbwebCustomer, cameraState, decodedFrames, fbwebAccountOf, fbwebCall, fbwebKey, fbwebVideo,
+  hangupFbwebCall, isFbwebCall, isFbwebSilenced, pruneFbwebSilenced, silenceFbwebCall, syncFbwebCall, toggleFbwebMute
 } =
   await import('./fbwebCall.js')
 
@@ -136,9 +136,22 @@ describe('Fanpage Web calls', () => {
     expect(fbwebCall.state).toBe('idle')
   })
 
-  it('silences a ringing call', async () => {
-    expect((await declineFbwebCall(ring)).ok).toBe(true)
-    expect(calls).toEqual([{ account: 'vetgo-test', callId: 'ROOM:1', action: 'decline', body: {} }])
+  it('silences a ringing call on this browser only, without telling the gateway', () => {
+    const first = { ...ring, since: '2026-11-22T10:00:00Z' }
+    silenceFbwebCall(first)
+    expect(isFbwebSilenced(first)).toBe(true)
+    expect(calls).toEqual([])
+    expect(fbwebCallAction).not.toHaveBeenCalled()
+
+    // Còn đổ chuông: vẫn tắt. Lời mời mới cùng mã phòng (since mới) thì đổ chuông lại.
+    pruneFbwebSilenced([first])
+    expect(isFbwebSilenced(first)).toBe(true)
+    const again = { ...ring, since: '2026-11-22T10:05:00Z' }
+    expect(isFbwebSilenced(again)).toBe(false)
+
+    // Hết đổ chuông (rời danh sách hay đã nghe máy): quên.
+    pruneFbwebSilenced([{ ...first, state: 'active' }])
+    expect(isFbwebSilenced(first)).toBe(false)
   })
 })
 

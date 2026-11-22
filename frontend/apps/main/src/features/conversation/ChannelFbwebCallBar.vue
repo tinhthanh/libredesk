@@ -91,12 +91,13 @@ import { accountListed, branchCalls, callFeature, ensureCallFeature, formatCallD
 import {
   answerFbwebCall,
   callFbwebCustomer,
-  declineFbwebCall,
   fbwebAccountOf,
   fbwebCall,
   fbwebSupported,
   hangupFbwebCall,
   isFbwebCall,
+  isFbwebSilenced,
+  silenceFbwebCall,
   toggleFbwebMute
 } from '@main/utils/fbwebCall.js'
 
@@ -121,7 +122,9 @@ watch(
 
 // Cuộc gọi đang đổ chuông của hội thoại này (danh sách thanh xanh hỏi gateway mỗi 3 giây).
 const ring = computed(() =>
-  branchCalls.list.find((c) => isFbwebCall(c) && c.incoming && c.state === 'ringing' && c.conversation_uuid === conversation.value?.uuid) || null
+  branchCalls.list.find(
+    (c) => isFbwebCall(c) && c.incoming && c.state === 'ringing' && c.conversation_uuid === conversation.value?.uuid && !isFbwebSilenced(c)
+  ) || null
 )
 const inCall = computed(() => fbwebCall.state !== 'idle' && fbwebCall.conversationUUID === conversation.value?.uuid)
 const elapsed = computed(() => (fbwebCall.answeredAt ? (now.value - fbwebCall.answeredAt) / 1000 : 0))
@@ -174,11 +177,8 @@ async function callCustomer () {
   emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description })
 }
 
-async function silence () {
-  if (!ring.value) return
-  busy.value = true
-  const res = await declineFbwebCall(ring.value)
-  busy.value = false
-  if (!res.ok) emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: res.error || t('conversation.fbwebCall.failed') })
+// Tắt chuông chỉ trên trình duyệt này (fbwebCall.js, silenceFbwebCall): không gửi gì lên gateway.
+function silence () {
+  if (ring.value) silenceFbwebCall(ring.value)
 }
 </script>

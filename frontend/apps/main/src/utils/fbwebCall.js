@@ -273,14 +273,26 @@ export async function callFbwebCustomer (conversation, ringMs = OUTGOING_RING_MS
   return { ok: true, reason: 'hangup', error: '' }
 }
 
-// Tắt chuông trên Libredesk (khách vẫn nghe chuông tới khi Facebook thôi).
-export async function declineFbwebCall (c) {
-  try {
-    await api.fbwebCallAction(c.account, c.call_id, 'decline', {})
-    return { ok: true, error: '' }
-  } catch (error) {
-    return { ok: false, error: errorOf(error) }
-  }
+// Tắt chuông chỉ trên trình duyệt này, không gửi gì lên gateway: thao tác decline của gateway
+// là cúp phía Trang, làm cuộc gọi biến mất khỏi Libredesk của mọi nhân viên, trong khi nhân viên
+// khác có thể vẫn muốn nghe máy (như app Vetgo). Khách vẫn nghe chuông tới khi Facebook thôi.
+// Khoá kèm `since`: Messenger dùng lại mã phòng cho mọi cuộc gọi giữa khách và Trang, lời mời mới
+// có `since` mới nên đổ chuông lại.
+const silenced = reactive(new Set())
+const silenceKey = (c) => `${fbwebKey(c)}:${c.since || ''}`
+
+export function silenceFbwebCall (c) {
+  silenced.add(silenceKey(c))
+}
+
+export function isFbwebSilenced (c) {
+  return silenced.has(silenceKey(c))
+}
+
+// Quên các cuộc đã tắt chuông khi chúng không còn đổ chuông trong danh sách mới của gateway.
+export function pruneFbwebSilenced (list) {
+  const live = new Set(list.filter((c) => isFbwebCall(c) && c.state === 'ringing').map(silenceKey))
+  for (const k of silenced) if (!live.has(k)) silenced.delete(k)
 }
 
 export async function hangupFbwebCall () {
