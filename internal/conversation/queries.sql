@@ -59,6 +59,11 @@ SELECT
     conversations.last_message,
     conversations.last_message_at,
     conversations.last_message_sender,
+    -- omni_event of the last message (a note the omnichannel gateway wrote), via the
+    -- (conversation_id, created_at) index; NULL for any other message.
+    (SELECT m.meta->>'omni_event' FROM conversation_messages m
+     WHERE m.conversation_id = conversations.id
+     ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_message_omni_event,
     conversations.last_interaction,
     conversations.last_interaction_at,
     conversations.last_interaction_sender,
@@ -144,6 +149,11 @@ SELECT
     conversations.last_message,
     conversations.last_message_at,
     conversations.last_message_sender,
+    -- omni_event of the last message (a note the omnichannel gateway wrote), via the
+    -- (conversation_id, created_at) index; NULL for any other message.
+    (SELECT m.meta->>'omni_event' FROM conversation_messages m
+     WHERE m.conversation_id = conversations.id
+     ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_message_omni_event,
     conversations.last_interaction,
     conversations.last_interaction_at,
     conversations.last_interaction_sender,
