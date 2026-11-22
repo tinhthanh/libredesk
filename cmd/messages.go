@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 
 	amodels "github.com/abhinavxd/libredesk/internal/auth/models"
@@ -22,6 +23,23 @@ type messageReq struct {
 	SenderType  string                 `json:"sender_type"`
 	Mentions    []cmodels.MentionInput `json:"mentions"`
 	EchoID      string                 `json:"echo_id"`
+	// OmniEvent marks a private note the omnichannel gateway writes (a call, a failed send, a
+	// recall...), so clients can tell it from a note an agent typed. Stored as meta.omni_event.
+	OmniEvent string `json:"omni_event"`
+}
+
+// omniEventPattern: the values the gateway sends ("call", "failed", "group_event"...).
+var omniEventPattern = regexp.MustCompile(`^[a-z_]{1,32}$`)
+
+// noteMeta is the meta of a private note: omni_event when the request carries a valid one.
+func noteMeta(omniEvent string) (map[string]any, bool) {
+	if omniEvent == "" {
+		return nil, true
+	}
+	if !omniEventPattern.MatchString(omniEvent) {
+		return nil, false
+	}
+	return map[string]any{"omni_event": omniEvent}, true
 }
 
 // handleGetMessages returns messages for a conversation.
@@ -254,7 +272,11 @@ func handleSendMessage(r *fastglue.Request) error {
 
 	// Send private note.
 	if req.Private {
-		message, err := app.conversation.SendPrivateNote(media, user.ID, cuuid, req.Message, req.Mentions)
+		meta, ok := noteMeta(req.OmniEvent)
+		if !ok {
+			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, app.i18n.T("globals.messages.badRequest"), nil, envelope.InputError)
+		}
+		message, err := app.conversation.SendPrivateNoteWithMeta(media, user.ID, cuuid, req.Message, req.Mentions, meta)
 		if err != nil {
 			return sendErrorEnvelope(r, err)
 		}

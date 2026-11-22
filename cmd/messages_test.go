@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/abhinavxd/libredesk/internal/attachment"
@@ -275,5 +276,19 @@ func TestResolveAttachmentCIDs(t *testing.T) {
 				t.Errorf("resolveAttachmentCIDs()\n got  = %s\n want = %s", tt.msg.Content, tt.want)
 			}
 		})
+	}
+}
+
+func TestNoteMeta(t *testing.T) {
+	if m, ok := noteMeta(""); !ok || m != nil {
+		t.Fatalf("empty: %v %v", m, ok)
+	}
+	if m, ok := noteMeta("group_event"); !ok || m["omni_event"] != "group_event" {
+		t.Fatalf("valid: %v %v", m, ok)
+	}
+	for _, bad := range []string{"Call", "call!", "<p>", strings.Repeat("a", 33)} {
+		if _, ok := noteMeta(bad); ok {
+			t.Fatalf("%q accepted", bad)
+		}
 	}
 }
