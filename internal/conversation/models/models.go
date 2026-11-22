@@ -145,6 +145,10 @@ type ConversationListItem struct {
 	NextResponseDueAt     null.Time               `db:"next_response_deadline_at" json:"next_response_deadline_at"`
 	NextResponseMetAt     null.Time               `db:"next_response_met_at" json:"next_response_met_at"`
 	MentionedMessageUUID  null.String             `db:"mentioned_message_uuid" json:"mentioned_message_uuid"`
+
+	// LastMessageOmniEvent: meta.omni_event of the last message when it is a note the omnichannel
+	// gateway wrote ("call", "failed"...), so lists tell it from a note an agent typed.
+	LastMessageOmniEvent null.String `db:"last_message_omni_event" json:"last_message_omni_event"`
 }
 
 // ConversationListContact represents contact info in conversation list views
