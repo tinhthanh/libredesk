@@ -116,6 +116,24 @@ describe('Fanpage Web calls', () => {
     expect(calls.map((c) => c.action)).toEqual(['answer', 'subscribe'])
   })
 
+  it('sends ring_id and stops, without hanging up, when the customer calls back on the same room', async () => {
+    const first = { ...ring, ring_id: 'r-1' }
+    await answerFbwebCall(first)
+    expect(calls.map((c) => c.body.ring_id)).toEqual(['r-1', 'r-1'])
+    syncFbwebCall([{ ...first, state: 'active' }])
+    expect(fbwebCall.state).toBe('in_call')
+    // Khách cúp rồi gọi lại trước lần hỏi danh sách kế tiếp: cùng phòng, ring_id mới.
+    syncFbwebCall([{ ...first, ring_id: 'r-2', state: 'ringing' }])
+    expect(fbwebCall.state).toBe('idle')
+    expect(calls.map((c) => c.action)).toEqual(['answer', 'subscribe'])
+  })
+
+  it('hangs up with the ring_id of the call it joined', async () => {
+    await answerFbwebCall({ ...ring, ring_id: 'r-1' })
+    await hangupFbwebCall()
+    expect(calls.at(-1)).toMatchObject({ action: 'hangup', body: { ring_id: 'r-1' } })
+  })
+
   it('reports a missing microphone without answering', async () => {
     navigator.mediaDevices.getUserMedia = vi.fn(async () => { throw new Error('denied') })
     const res = await answerFbwebCall(ring)
@@ -239,6 +257,23 @@ describe('Fanpage Web outgoing calls', () => {
     const res = await callFbwebCustomer(conv)
     expect(res).toEqual({ ok: false, reason: '', error: 'Không thực hiện được: Trang chưa nhận cuộc gọi nào.' })
     expect(fbwebCall.state).toBe('idle')
+  })
+
+  it('sends the ring_id of the call it placed, and stops when the room moved on (409)', async () => {
+    startFbwebCall.mockImplementationOnce(async (uuid, offer) => {
+      calls.push({ action: 'start', uuid, offer })
+      return { data: { account: 'vetgo-test', call_id: 'ROOM:9', ring_id: 'r-9', answer: 'v=0 answer' } }
+    })
+    fbwebCallAction.mockImplementationOnce(async (account, callId, action, body) => {
+      calls.push({ account, callId, action, body })
+      const error = new Error('409')
+      error.response = { status: 409, data: { error: 'Cuộc gọi này đã kết thúc, khách đang gọi lại.' } }
+      throw error
+    })
+    const res = await callFbwebCustomer(conv)
+    expect(res.reason).toBe('ended')
+    expect(calls[1]).toMatchObject({ action: 'wait', body: { ring_id: 'r-9' } })
+    expect(calls.some((c) => c.action === 'hangup')).toBe(false)
   })
 
   it('stops ringing when the agent hangs up', async () => {

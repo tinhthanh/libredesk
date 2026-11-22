@@ -23,6 +23,9 @@ export const fbwebCall = reactive({
   key: '', // `${account}:${call_id}` như danh sách cuộc gọi của gateway
   account: '',
   callId: '',
+  // ring_id của gateway: một giá trị cho mỗi lần gọi. Messenger dùng lại mã phòng (call_id) cho mọi
+  // cuộc gọi giữa khách và Trang; gửi kèm ring_id để thao tác của cuộc cũ không chạm cuộc khách gọi lại.
+  ringId: '',
   conversationUUID: '',
   // idle | answering | calling (đang mở cuộc gọi đi) | ringing_out (đang đổ chuông ở khách) | in_call
   state: 'idle',
@@ -46,6 +49,9 @@ let seq = 0
 let cameraTimer = null
 
 export const fbwebKey = (c) => `${c.account}:${c.call_id}`
+
+// Thân yêu cầu kèm ring_id (gateway cũ không có ring_id: gửi như trước).
+const withRing = (body, ringId) => (ringId ? { ...body, ring_id: ringId } : body)
 
 export function isFbwebCall (c) {
   return c?.channel === FBWEB_CHANNEL
@@ -120,7 +126,7 @@ function cleanup () {
   audio = null
   fbwebVideo.remote.value = null
   Object.assign(fbwebCall, {
-    key: '', account: '', callId: '', conversationUUID: '', state: 'idle', outgoing: false, muted: false, remoteVideo: false, answeredAt: 0
+    key: '', account: '', callId: '', ringId: '', conversationUUID: '', state: 'idle', outgoing: false, muted: false, remoteVideo: false, answeredAt: 0
   })
 }
 
@@ -179,8 +185,9 @@ export async function answerFbwebCall (c) {
   if (!window.isSecureContext) return { ok: false, reason: 'insecure', error: '' }
   const my = ++seq
   Object.assign(fbwebCall, {
-    key: fbwebKey(c), account: c.account, callId: c.call_id, conversationUUID: c.conversation_uuid || '', state: 'answering'
+    key: fbwebKey(c), account: c.account, callId: c.call_id, ringId: c.ring_id || '', conversationUUID: c.conversation_uuid || '', state: 'answering'
   })
+  const ringId = c.ring_id || ''
   if (!(await getMic())) {
     if (my === seq) cleanup()
     return { ok: false, reason: 'mic', error: '' }
@@ -188,12 +195,12 @@ export async function answerFbwebCall (c) {
   let joined = false
   try {
     const offer = await openPeer()
-    const { data } = await api.fbwebCallAction(c.account, c.call_id, 'answer', { offer })
+    const { data } = await api.fbwebCallAction(c.account, c.call_id, 'answer', withRing({ offer }, ringId))
     joined = true
     if (my !== seq || !pc) return { ok: false, reason: '', error: '' }
     await pc.setRemoteDescription({ type: 'answer', sdp: data.answer })
     await applyServerOffer(data.offer)
-    await api.fbwebCallAction(c.account, c.call_id, 'subscribe', { tracks: Array.isArray(data.tracks) ? data.tracks : [] })
+    await api.fbwebCallAction(c.account, c.call_id, 'subscribe', withRing({ tracks: Array.isArray(data.tracks) ? data.tracks : [] }, ringId))
     if (my !== seq) return { ok: false, reason: '', error: '' }
     fbwebCall.state = 'in_call'
     fbwebCall.answeredAt = Date.now()
@@ -207,7 +214,7 @@ export async function answerFbwebCall (c) {
       // giữa chừng, để khách không chờ một máy câm.
       const status = error?.response?.status || 0
       const refused = !joined && status >= 400 && status < 500
-      if (pc && !refused) api.fbwebCallAction(c.account, c.call_id, 'hangup', {}).catch(() => {})
+      if (pc && !refused) api.fbwebCallAction(c.account, c.call_id, 'hangup', withRing({}, ringId)).catch(() => {})
       cleanup()
     }
     return { ok: false, reason: '', error: msg }
@@ -231,17 +238,19 @@ export async function callFbwebCustomer (conversation, ringMs = OUTGOING_RING_MS
     const offer = await openPeer()
     const { data } = await api.startFbwebCall(conversation.uuid, offer)
     if (my !== seq || !pc) {
-      api.fbwebCallAction(data.account, data.call_id, 'hangup', {}).catch(() => {})
+      api.fbwebCallAction(data.account, data.call_id, 'hangup', withRing({}, data.ring_id)).catch(() => {})
       return { ok: false, reason: 'hangup', error: '' }
     }
-    Object.assign(fbwebCall, { key: `${data.account}:${data.call_id}`, account: data.account, callId: data.call_id, state: 'ringing_out' })
+    Object.assign(fbwebCall, {
+      key: `${data.account}:${data.call_id}`, account: data.account, callId: data.call_id, ringId: data.ring_id || '', state: 'ringing_out'
+    })
     await pc.setRemoteDescription({ type: 'answer', sdp: data.answer })
     started = Date.now()
   } catch (error) {
     if (my === seq) cleanup()
     return { ok: false, reason: '', error: errorOf(error) }
   }
-  const { account, callId } = fbwebCall
+  const { account, callId, ringId } = fbwebCall
   // Chờ khách nghe máy, rồi chờ cuộc gọi kết thúc (wait giữ tới khi có chuyện hay hết hạn).
   let errors = 0
   while (my === seq) {
@@ -251,11 +260,13 @@ export async function callFbwebCustomer (conversation, ringMs = OUTGOING_RING_MS
     }
     let u
     try {
-      ;({ data: u } = await api.fbwebCallAction(account, callId, 'wait', {}))
+      ;({ data: u } = await api.fbwebCallAction(account, callId, 'wait', withRing({}, ringId)))
       errors = 0
     } catch (error) {
       if (my !== seq) break
-      if (++errors >= 3 || error?.response?.status === 404) {
+      // 404: cuộc gọi đã kết thúc; 409: phòng đã sang một cuộc gọi khác.
+      const status = error?.response?.status
+      if (++errors >= 3 || status === 404 || status === 409) {
         cleanup()
         return { ok: false, reason: 'ended', error: '' }
       }
@@ -304,12 +315,13 @@ export function pruneFbwebSilenced (list) {
 
 export async function hangupFbwebCall () {
   if (fbwebCall.state === 'idle') return
-  const { account, callId } = fbwebCall
+  const { account, callId, ringId } = fbwebCall
   seq++
   cleanup()
   if (!callId) return
   try {
-    await api.fbwebCallAction(account, callId, 'hangup', {})
+    // Kèm ring_id: khách vừa cúp rồi gọi lại (cùng phòng) thì gateway trả 409, không cúp cuộc mới.
+    await api.fbwebCallAction(account, callId, 'hangup', withRing({}, ringId))
   } catch {
     // Cuộc gọi đã kết thúc phía Facebook: không có gì để báo.
   }
@@ -322,10 +334,14 @@ export function toggleFbwebMute () {
 }
 
 // Danh sách cuộc gọi mới của gateway: cuộc đang nói (khách gọi tới) không còn trong đó thì khách đã cúp.
+// Còn phòng đó nhưng ring_id khác thì khách đã cúp rồi gọi lại (Messenger dùng lại mã phòng): cuộc
+// đang nói cũng đã hết, cuộc mới đổ chuông như mọi cuộc khác. Không gửi cúp: phòng đã kết thúc
+// trên gateway, và lệnh cúp lúc này sẽ cúp cuộc khách vừa gọi lại.
 // Cuộc gọi đi tự theo dõi qua wait.
 export function syncFbwebCall (list) {
   if (fbwebCall.state !== 'in_call' || fbwebCall.outgoing) return
-  if (!list.some((c) => fbwebKey(c) === fbwebCall.key)) {
+  const cur = list.find((c) => fbwebKey(c) === fbwebCall.key)
+  if (!cur || (fbwebCall.ringId && cur.ring_id && cur.ring_id !== fbwebCall.ringId)) {
     seq++
     cleanup()
   }
