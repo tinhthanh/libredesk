@@ -113,6 +113,22 @@
                   <span class="font-medium text-foreground">{{ $t('globals.terms.draft') }}:</span>
                   {{ draftPreview }}
                 </template>
+                <!-- omnichannel: like the Vetgo app, the group member's name and an icon
+                     for the kind of message (image, sticker, call, link, poll...) -->
+                <template v-else-if="omniPreview">
+                  <Reply
+                    class="text-success inline-block align-text-bottom mr-0.5"
+                    :size="14"
+                    v-if="omniByStaff"
+                  /><span v-if="omniPreview.sender" class="font-medium">{{ omniPreview.sender }}: </span
+                  ><component
+                    :is="omniPreviewIcon"
+                    v-if="omniPreviewIcon"
+                    class="text-muted-foreground inline-block align-text-bottom mr-0.5"
+                    :size="14"
+                    :data-omni-preview="omniPreview.kind"
+                  />{{ omniPreviewText }}
+                </template>
                 <!-- omnichannel: owner replied from the phone, shown as an icon -->
                 <template v-else-if="ownerLastMessage !== null">
                   <Smartphone
@@ -201,7 +217,13 @@ import { useConversationStore } from '@main/stores/conversation'
 import { useAppSettingsStore } from '@main/stores/appSettings'
 import { useBulkActionPermissions } from '@/composables/useBulkActionPermissions'
 import { useI18n } from 'vue-i18n'
-import { ownerPreview, quotePreview } from '@main/utils/omnichannel.js'
+import {
+  lastMessageByStaff,
+  omniListPreview,
+  ownerPreview,
+  quotePreview
+} from '@main/utils/omnichannel.js'
+import { OMNI_PREVIEW_ICONS } from './omniPreviewIcons.js'
 
 let timer = null
 const now = ref(new Date())
@@ -259,6 +281,15 @@ const trimmedLastMessage = computed(() => {
 })
 
 const ownerLastMessage = computed(() => ownerPreview(trimmedLastMessage.value))
+
+// omnichannel: gateway inboxes (omni-core previewParts)
+const omniPreview = computed(() => omniListPreview(props.conversation))
+const omniPreviewIcon = computed(() => (omniPreview.value?.kind ? OMNI_PREVIEW_ICONS[omniPreview.value.kind] : null))
+const omniPreviewText = computed(() => {
+  const text = omniPreview.value?.text || ''
+  return text.length > 120 ? text.slice(0, 120) + '...' : text
+})
+const omniByStaff = computed(() => lastMessageByStaff(props.conversation))
 
 const relativeLastMessageTime = computed(() => {
   return props.conversation.last_message_at
