@@ -17,6 +17,12 @@ export interface MessageLike {
   type?: string | null
   content?: string | null
   author?: PersonName | null
+  /** Ghi chú nội bộ. */
+  private?: boolean | null
+  created_at?: string | null
+  /** `meta.omni_event`: dấu gateway gắn cho ghi chú của nó. */
+  meta?: Record<string, unknown> | null
+  attachments?: readonly AttachmentLike[] | null
 }
 
 /** Tệp đính kèm của Libredesk. */

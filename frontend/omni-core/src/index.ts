@@ -4,6 +4,7 @@
 export * from './types'
 export * from './channel'
 export * from './message'
+export * from './rich'
 export * from './accounts'
 export * from './calls'
 export * from './early-updates'
