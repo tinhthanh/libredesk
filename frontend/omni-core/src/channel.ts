@@ -61,18 +61,17 @@ export function senderAvatarURL(conversationUUID: string | null | undefined, nam
   return `/gw/avatar?conv=${encodeURIComponent(conversationUUID)}&name=${encodeURIComponent(name)}`
 }
 
-// canRecallInbox: thu hồi tin nhân viên đã gửi. Messenger không cho Trang thu hồi hay sửa, Zalo OA
-// OpenAPI không có thu hồi. Hành vi hiện tại của Libredesk: mọi kênh gateway trừ Fanpage, Zalo OA,
-// Fanpage Web (SMS vẫn hiện nút; app Vetgo đang ẩn, chờ chốt).
+// canRecallInbox: thu hồi tin nhân viên đã gửi, chỉ Zalo và Facebook cá nhân. Messenger không cho Trang
+// thu hồi hay sửa, Zalo OA OpenAPI không có thu hồi, tin SMS đã gửi thì không lấy lại được.
 export function canRecallInbox(conversation: InboxRef | null | undefined): boolean {
   const channel = omniChannel(conversation)
-  return channel !== '' && channel !== 'fanpage' && channel !== 'zalo-oa' && channel !== 'fanpage-web'
+  return channel === 'zalo' || channel === 'facebook'
 }
 
 // Cảm xúc nhân viên gửi được: bộ cả Zalo và Messenger đều hiểu.
 export const REACTION_CHOICES = ['❤️', '👍', '😆', '😮', '😢', '😡'] as const
 
-const bareEmoji = (e: unknown) => String(e || '').replace(/️/g, '')
+const bareEmoji = (e: unknown) => String(e || '').replace(/\uFE0F/g, '')
 
 // nextReaction: cảm xúc cần gửi khi nhân viên chọn `choice`; chọn lại cảm xúc tài khoản đã thả là bỏ ('').
 export function nextReaction(choice: string, reactions: readonly Reaction[] | null | undefined): string {

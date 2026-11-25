@@ -115,6 +115,13 @@ describe('omnichannel quote replies', () => {
     expect(isOmnichannelInbox({ inbox_name: 'Zalo OA - shop' })).toBe(true)
     expect(canRecallInbox({ inbox_name: 'Zalo OA - shop' })).toBe(false)
   })
+
+  it('recalls only on Zalo and Facebook, never on SMS', () => {
+    expect(canRecallInbox({ inbox_name: 'Facebook - acc2' })).toBe(true)
+    expect(isOmnichannelInbox({ inbox_name: 'SMS - q1' })).toBe(true)
+    expect(canRecallInbox({ inbox_name: 'SMS - q1' })).toBe(false)
+    expect(canRecallInbox(null)).toBe(false)
+  })
 })
 
 describe('omnichannel channel of an inbox', () => {
