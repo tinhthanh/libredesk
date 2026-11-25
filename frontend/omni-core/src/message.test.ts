@@ -16,6 +16,8 @@ import {
   quotePreview,
   quoteTarget,
   quoteText,
+  htmlToText,
+  previewText,
   replyQuote,
   senderAvatarURL,
   stripGroupSender
@@ -49,10 +51,27 @@ describe('omnichannel group senders', () => {
 describe('omnichannel quote replies', () => {
   it('builds a target with the member name and one line of text', () => {
     const msg = { uuid: 'm-1', type: 'incoming', author: group, content: '[Nguyễn Văn A]: giá   bao\nnhiêu?' }
-    expect(quoteTarget('c-1', msg)).toEqual({ conversationUUID: 'c-1', uuid: 'm-1', author: 'Nguyễn Văn A', text: 'giá bao nhiêu?' })
+    expect(quoteTarget(msg)).toEqual({ uuid: 'm-1', author: 'Nguyễn Văn A', text: 'giá bao nhiêu?' })
     const one = { uuid: 'm-2', type: 'incoming', author: { first_name: 'Bình', last_name: '· Zalo acc2' }, content: '<p>hi</p>' }
-    expect(quoteTarget('c-1', one).author).toBe('Bình')
+    expect(quoteTarget(one)).toEqual({ uuid: 'm-2', author: 'Bình', text: 'hi' })
     expect(quoteText('a'.repeat(200)).length).toBe(120)
+  })
+
+  it('reads group senders and quotes wrapped in <p>', () => {
+    const msg = { uuid: 'm-3', type: 'incoming', author: group, content: '<p>[Lan]: ↪ «Trúc: form giấy»<br>gửi e &amp; chị</p>' }
+    expect(groupSender(msg)).toBe('Lan')
+    expect(stripGroupSender(msg.content)).toBe('<p>↪ «Trúc: form giấy»<br>gửi e &amp; chị</p>')
+    expect(customerQuote(stripGroupSender(msg.content))).toEqual({ author: 'Trúc', text: 'form giấy', body: '<p>gửi e &amp; chị</p>' })
+    expect(quoteTarget(msg)).toEqual({ uuid: 'm-3', author: 'Lan', text: 'gửi e & chị' })
+  })
+
+  it('keeps a 1-1 or agent "[Note]: " prefix and labels file-only targets', () => {
+    const one = { uuid: 'm-4', type: 'incoming', author: { first_name: 'An' }, content: '[Lưu ý]: mang sổ tiêm' }
+    expect(quoteTarget(one).text).toBe('[Lưu ý]: mang sổ tiêm')
+    expect(quoteTarget({ uuid: 'm-5', type: 'incoming', author: { first_name: 'An' }, content: '' }).text).toBe('[Tệp đính kèm]')
+    expect(htmlToText('giá <100k và >50k')).toBe('giá <100k và >50k')
+    expect(htmlToText('<p>a&nbsp;b</p><p>c</p>')).toBe('a b c')
+    expect(previewText('<blockquote data-reply-uuid="x"><p>A: b</p></blockquote><p>ok</p>')).toBe('ok')
   })
 
   it('escapes the quote HTML', () => {
@@ -83,7 +102,7 @@ describe('omnichannel quote replies', () => {
     })
     expect(customerQuote('↪ «(tin được trả lời không còn trong bộ nhớ của bot)»\nok')?.author).toBe('')
     expect(customerQuote('không trích ↪ «A: b»\nx')).toBeNull()
-    expect(quoteText('[Nhất]: ↪ «Trúc: form giấy»\nchị gửi e ảnh')).toBe('chị gửi e ảnh')
+    expect(quoteText('↪ «Trúc: form giấy»\nchị gửi e ảnh')).toBe('chị gửi e ảnh')
     expect(quotePreview('[Nhất]: ↪ «Trúc: form giấy» chị gửi e ảnh')).toBe('[Nhất]: ↩ chị gửi e ảnh')
     expect(quotePreview('xin chào')).toBe('xin chào')
   })
@@ -167,7 +186,8 @@ describe('omnichannel owner replies', () => {
   const head = '<p><strong>👤 Chủ tài khoản trả lời trực tiếp (điện thoại/ứng dụng khác)</strong> · Chủ tài khoản</p>'
 
   it('splits the gateway heading from the reply', () => {
-    expect(ownerReply(head + '<p>Xin chào</p>', false)).toEqual({ sender: 'Chủ tài khoản', body: '<p>Xin chào</p>' })
+    // "· Chủ tài khoản" là tên mặc định của gateway, lặp với nhãn: bỏ.
+    expect(ownerReply(head + '<p>Xin chào</p>', false)).toEqual({ sender: '', body: '<p>Xin chào</p>' })
     expect(ownerReply('<p><strong>👤 Chủ tài khoản trả lời trực tiếp (x)</strong> · An &amp; Bình</p><p>ok</p>', false)?.sender).toBe('An & Bình')
     expect(ownerReply('<p>Xin chào</p>', false)).toBe(null)
     expect(ownerReply('<p><strong>✏️ Tin nhắn đã được sửa</strong></p>', false)).toBe(null)
