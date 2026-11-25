@@ -3,7 +3,7 @@
 // cấu trúc. Bản của app Vetgo, gộp vào đây 25/11/2026. Hàm trả loại (`kind`); icon và chữ nút do giao diện chọn.
 
 import { looksLikeHtml, ownContent, ownerPreview, stripGroupSender, unescapeHTML } from './message'
-import type { AttachmentLike, MessageLike } from './types'
+import type { AttachmentLike, ConversationListItemLike, MessageLike } from './types'
 
 // contentLines: HTML (hay chữ thuần) -> các dòng chữ, giữ xuống dòng của <br> và <p>. Chữ thuần không bị xoá "<…>"
 // của người gõ: chỉ HTML thật mới bỏ thẻ.
@@ -279,4 +279,44 @@ export function richCard(message: MessageLike): RichCard | null {
   }
   const missed = kind === 'call' && MISSED.test(title)
   return { kind, title: head, lines: rest, url, pollAction, options, missed }
+}
+
+// --- Tin cuối trong danh sách hội thoại ---
+
+// Tin hoạt động Libredesk ghi sẵn bằng tiếng Anh (internal/conversation/message.go, getMessageActivityContent),
+// vd "System  marked the conversation as Resolved". Libredesk tính chúng là tin của agent.
+const ACTIVITY_PATTERNS: readonly RegExp[] = [
+  /^(.+?) marked the conversation as (.+)$/,
+  /^Assigned to (.+) team by (.+)$/,
+  /^Assigned to (.+) by (.+)$/,
+  /^(.+?) self-assigned this conversation$/,
+  /^(.+?) set priority to (.+)$/,
+  /^(.+?) added tag (.+)$/,
+  /^(.+?) removed tag (.+)$/,
+  /^(.+?) set (.+) SLA policy$/,
+  /^(.+) joined the conversation$/
+]
+
+// isActivityText: dòng xem trước là tin hoạt động của Libredesk.
+export function isActivityText(text: string | null | undefined): boolean {
+  const t = (text || '').replace(/\s+/g, ' ').trim()
+  return ACTIVITY_PATTERNS.some((re) => re.test(t))
+}
+
+// Ghi chú của gateway mở đầu bằng một trong các emoji này (eventTitles, callNote, ghi chú chủ tài khoản).
+const NOTE_START = /^(📞|↩️|✏️|💬|👥|🤝|ℹ️|⚠️|👤)/u
+
+// lastMessageByStaff: tin cuối của hội thoại là tin nhân viên viết. Libredesk tính cả ghi chú của gateway (cuộc
+// gọi, thu hồi, chủ tài khoản trả lời...) và tin hoạt động là của agent. Có dấu `omni_event` là ghi chú của gateway;
+// không dấu thì chỉ đoán theo emoji với tin trước OMNI_EVENT_SINCE (khi chưa có dấu) hay server cũ không có trường.
+export function lastMessageByStaff(item: ConversationListItemLike | null | undefined): boolean {
+  if (item?.last_message_sender !== 'agent') return false
+  const text = item.last_message || ''
+  if (isActivityText(text)) return false
+  if ('last_message_omni_event' in item) {
+    if (item.last_message_omni_event) return false
+    const at = Date.parse(item.last_message_at || '')
+    return !(NOTE_START.test(text) && !(at >= OMNI_EVENT_SINCE))
+  }
+  return !NOTE_START.test(text)
 }

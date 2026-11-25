@@ -40,6 +40,16 @@ export interface Reaction {
   mine?: boolean | null
 }
 
+/** Mục của danh sách hội thoại Libredesk (`GET /api/v1/conversations/...`). */
+export interface ConversationListItemLike {
+  last_message?: string | null
+  last_message_at?: string | null
+  /** 'agent' | 'contact'; Libredesk tính cả ghi chú và hoạt động là của agent. */
+  last_message_sender?: string | null
+  /** Dấu `meta.omni_event` của tin cuối (libredesk #21); không có trường này ở server cũ. */
+  last_message_omni_event?: string | null
+}
+
 // --- Tài khoản kênh (gateway GET /gw/accounts) ---
 
 export type AccountState = 'running' | 'starting' | 'retrying' | 'dropped' | 'stopped'

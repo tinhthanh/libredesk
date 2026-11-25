@@ -30,6 +30,15 @@ describe('conversation list preview for gateway inboxes', () => {
     expect(lastMessageByStaff(conv('📞 Thanh gọi khách', { last_message_sender: 'agent' }))).toBe(false)
     expect(lastMessageByStaff(conv('dạ vâng', { last_message_sender: 'agent' }))).toBe(true)
     expect(lastMessageByStaff(conv('dạ vâng', { last_message_sender: 'contact' }))).toBe(false)
+    // Ghi chú của gateway trước khi có dấu omni_event (trường có nhưng null).
+    const before = { last_message_sender: 'agent', last_message_omni_event: null, last_message_at: '2026-11-21T10:00:00Z' }
+    expect(lastMessageByStaff(conv('📞 Thanh Huynh gọi khách qua Zalo · 1:19', before))).toBe(false)
+    // Sau mốc: không dấu là nhân viên tự viết, kể cả khi mở đầu bằng 📞.
+    const after = { ...before, last_message_at: '2026-11-24T10:00:00Z' }
+    expect(lastMessageByStaff(conv('📞 gọi lại cho khách', after))).toBe(true)
+    // Tin hoạt động của Libredesk.
+    expect(lastMessageByStaff(conv('System added tag SMS vetgo-test.test-q7', { last_message_sender: 'agent', last_message_omni_event: null }))).toBe(false)
+    expect(lastMessageByStaff(conv('System  marked the conversation as Resolved', { last_message_sender: 'agent' }))).toBe(false)
   })
 
   it('has an icon for every kind', () => {
