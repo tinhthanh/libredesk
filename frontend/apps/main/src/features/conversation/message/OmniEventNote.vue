@@ -25,7 +25,7 @@
         <TooltipTrigger>
           <span class="mt-0.5 flex flex-shrink-0 items-center gap-1 text-xs text-muted-foreground">
             <Lock :size="10" />
-            {{ format(message.created_at, 'HH:mm') }}
+            {{ format(message.created_at, 'h:mm a') }}
           </span>
         </TooltipTrigger>
         <TooltipContent>

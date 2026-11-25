@@ -50,7 +50,8 @@ describe('richCard', () => {
       title: 'Bảng giá dịch vụ VetGo',
       lines: ['Tiêm phòng'],
       url: 'https://vetgo.vn/bang-gia',
-      pollCreator: '',
+      pollAction: '',
+      options: [],
       missed: false
     })
     expect(richCard(incoming('<p>👤 Danh thiếp: Trần Bảo Ngọc<br>https://zalo.me/qr/p/x</p>'))?.title).toBe('Trần Bảo Ngọc')
@@ -59,8 +60,22 @@ describe('richCard', () => {
   })
 
   it('reads polls, friend requests, missed calls, big videos and undecryptable messages', () => {
-    const poll = richCard(incoming('<p>📊 Lan: Đi khám ngày nào?<br>• Thứ 7<br>- Chủ nhật</p>'))
-    expect([poll?.pollCreator, poll?.title, poll?.lines]).toEqual(['Lan', 'Đi khám ngày nào?', ['Thứ 7', 'Chủ nhật']])
+    const poll = richCard(incoming('<p>📊 Lan tạo bình chọn: Đi khám ngày nào?<br>• Thứ 7<br>- Chủ nhật</p>'))
+    expect([poll?.pollAction, poll?.title, poll?.options, poll?.lines]).toEqual([
+      'Lan tạo bình chọn',
+      'Đi khám ngày nào?',
+      ['Thứ 7', 'Chủ nhật'],
+      []
+    ])
+    // zalo-bot ghi kết quả thành dòng thường, không phải lựa chọn.
+    const vote = richCard(
+      incoming('<p>📊 Nguyen Van B cập nhật bình chọn: lich kham?<br>Chọn: Chieu chu nhat<br>Kết quả: Chieu chu nhat (1) · Sang thu bay (0)</p>')
+    )
+    expect([vote?.pollAction, vote?.options, vote?.lines]).toEqual([
+      'Nguyen Van B cập nhật bình chọn',
+      [],
+      ['Chọn: Chieu chu nhat', 'Kết quả: Chieu chu nhat (1) · Sang thu bay (0)']
+    ])
     expect(richCard(incoming('<p>🤝 Lời mời kết bạn «Chào shop»</p>'))?.title).toBe('Chào shop')
     expect(richCard(incoming('<p>📞 Đã nhỡ cuộc gọi thoại lúc 10:12</p>'))?.missed).toBe(true)
     const video = richCard(incoming('🎬 ten.mp4 · 0:48 · 11.2 MB — xem & ghi chú review: https://x.y/v · Ghi chú'))

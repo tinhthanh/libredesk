@@ -68,12 +68,20 @@ describe('omnichannel card components', () => {
     expect(html).toContain('Mở bản đồ')
   })
 
-  it('draws a poll with its creator and options, and no link without http(s)', async () => {
-    const poll = omniRichCard(incoming('<p>📊 Lan: Đi khám ngày nào?<br>• Thứ 7<br>• Chủ nhật</p>'), zalo)
+  it('draws a poll with its action line as written, options and result lines', async () => {
+    const poll = omniRichCard(incoming('<p>📊 Lan tạo bình chọn: Đi khám ngày nào?<br>• Thứ 7<br>• Chủ nhật</p>'), zalo)
     const html = await render(OmniRichCard, { card: poll })
     expect(html).toContain('Lan tạo bình chọn')
-    expect(html).toContain('Thứ 7')
-    expect(html).toContain('Chủ nhật')
+    expect(html).not.toContain('tạo bình chọn tạo bình chọn')
+    expect(html.match(/<li/g)?.length).toBe(2)
+    const vote = omniRichCard(
+      incoming('<p>📊 B cập nhật bình chọn: lich kham?<br>Chọn: Chieu<br>Kết quả: Chieu (1) · Sang (0)</p>'),
+      zalo
+    )
+    const voteHtml = await render(OmniRichCard, { card: vote })
+    expect(voteHtml).toContain('B cập nhật bình chọn')
+    expect(voteHtml).toContain('Kết quả: Chieu (1) · Sang (0)')
+    expect(voteHtml).not.toContain('<li')
     const unsafe = await render(OmniRichCard, { card: { ...poll, url: 'javascript:alert(1)' } })
     expect(unsafe).not.toContain('javascript:')
   })

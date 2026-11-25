@@ -203,8 +203,13 @@ export interface RichCard {
   title: string
   lines: string[]
   url: string | null
-  /** Bình chọn: người tạo ('' nếu không rõ). */
-  pollCreator: string
+  /**
+   * Bình chọn: người và hành động, nguyên văn của bot ("Lan tạo bình chọn", "Lan bỏ phiếu", "Lan cập nhật bình
+   * chọn"); '' nếu không có. Hiện như vậy, không ghép thêm chữ.
+   */
+  pollAction: string
+  /** Bình chọn: các lựa chọn (dòng mở đầu bằng "•" hay "-", đã bỏ dấu). Các dòng khác ("Chọn: …", "Kết quả: …") ở `lines`. */
+  options: string[]
   /** Cuộc gọi nhỡ hay không thành. */
   missed: boolean
 }
@@ -240,7 +245,8 @@ export function richCard(message: MessageLike): RichCard | null {
   const url = all.map((l) => URL_RE.exec(l)?.[0]).find(Boolean) ?? null
   let rest = lines.slice(1).filter((l) => l !== url)
   let head = (url ? title.replace(url, '') : title).trim() || title
-  let pollCreator = ''
+  let pollAction = ''
+  let options: string[] = []
   // Bỏ phần lặp với nhãn loại thẻ, tách người tạo.
   if (kind === 'contact') head = head.replace(/^Danh thiếp:?\s*/, '')
   if (kind === 'todo') head = head.replace(/^Việc cần làm:?\s*/, '')
@@ -262,12 +268,15 @@ export function richCard(message: MessageLike): RichCard | null {
   }
   if (kind === 'poll') {
     const sep = head.indexOf(': ')
+    // zalo-bot: "📊 <Tên> <hành động>: <câu hỏi>" (zca-js deploy/content.mjs), rồi "Chọn: …", "Kết quả: …".
     if (sep > 0) {
-      pollCreator = head.slice(0, sep)
+      pollAction = head.slice(0, sep)
       head = head.slice(sep + 2)
     }
-    rest = rest.map((l) => l.replace(/^[•-]\s*/, ''))
+    const bullet = /^[•-]\s*/
+    options = rest.filter((l) => bullet.test(l)).map((l) => l.replace(bullet, ''))
+    rest = rest.filter((l) => !bullet.test(l))
   }
   const missed = kind === 'call' && MISSED.test(title)
-  return { kind, title: head, lines: rest, url, pollCreator, missed }
+  return { kind, title: head, lines: rest, url, pollAction, options, missed }
 }

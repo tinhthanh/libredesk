@@ -858,7 +858,6 @@
   "conversation.omni.rich.friend": "Friend request",
   "conversation.omni.rich.video": "Video",
   "conversation.omni.rich.undecryptable": "Encrypted message",
-  "conversation.omni.rich.pollBy": "{name} created a poll",
   "conversation.omni.rich.open": "Open",
   "conversation.omni.rich.openLink": "Open link",
   "conversation.omni.rich.viewQr": "View QR code",
