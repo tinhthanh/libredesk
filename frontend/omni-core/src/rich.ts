@@ -39,12 +39,19 @@ export type PreviewKind =
   | 'todo'
   | 'friend'
   | 'alert'
+  | 'system'
+  | 'recall'
+  | 'edit'
+  | 'reaction'
+  | 'group'
 
 export interface PreviewParts {
   /** Loại tin để giao diện vẽ icon; null là tin chữ thường. */
   kind: PreviewKind | null
   /** Chữ đã bỏ emoji, tiêu đề. */
   text: string
+  /** Ghi chú chủ tài khoản (`kind: 'owner'`): loại của phần sau tiêu đề (vd 'image' với "🖼️ Ảnh"), không có thì null. */
+  innerKind?: PreviewKind | null
 }
 
 // Nhãn gateway ghi cho tin chỉ có tệp ("🧩 Sticker", "🖼️ Ảnh", "📎 tên-file", "📞 Cuộc gọi…") và các tin có cấu trúc.
@@ -61,21 +68,35 @@ const PREVIEW_KINDS: ReadonlyArray<readonly [RegExp, PreviewKind]> = [
   [/^📍\s*/u, 'location'],
   [/^✅\s*/u, 'todo'],
   [/^🤝\s*/u, 'friend'],
-  [/^⚠️?\s*/u, 'alert']
+  [/^⚠️?\s*/u, 'alert'],
+  // Ghi chú sự kiện của gateway (eventTitles): thông báo, thu hồi, sửa, cảm xúc, nhóm.
+  [/^ℹ️?\s*/u, 'system'],
+  [/^↩️?\s*/u, 'recall'],
+  [/^✏️?\s*/u, 'edit'],
+  [/^💬\s*/u, 'reaction'],
+  [/^👥\s*/u, 'group']
 ]
 
-// previewParts: dòng xem trước (đã bỏ tiền tố người gửi nhóm) -> loại và chữ. Ghi chú chủ tài khoản bỏ tiêu đề; khách
-// trả lời trích dẫn "↪ «Tác giả: nội dung» trả lời" chỉ giữ phần trả lời.
-export function previewParts(text: string | null | undefined): PreviewParts {
-  const value = text || ''
-  const owner = ownerPreview(value)
-  if (owner !== null) return { kind: 'owner', text: owner }
-  const quoted = /^↪ «[\s\S]*?»\s*/.exec(value)
-  if (quoted) return { kind: 'quote', text: value.slice(quoted[0].length) }
+function labelParts(value: string): PreviewParts {
   for (const [re, kind] of PREVIEW_KINDS) {
     if (re.test(value)) return { kind, text: value.replace(re, '') }
   }
   return { kind: null, text: value }
+}
+
+// previewParts: dòng xem trước (đã bỏ tiền tố người gửi nhóm) -> loại và chữ. Ghi chú chủ tài khoản bỏ tiêu đề, phần
+// sau đọc tiếp ("🖼️ Ảnh" -> innerKind 'image', chữ "Ảnh"); khách trả lời trích dẫn "↪ «Tác giả: nội dung» trả lời" chỉ
+// giữ phần trả lời.
+export function previewParts(text: string | null | undefined): PreviewParts {
+  const value = text || ''
+  const owner = ownerPreview(value)
+  if (owner !== null) {
+    const inner = labelParts(owner)
+    return { kind: 'owner', text: inner.text, innerKind: inner.kind }
+  }
+  const quoted = /^↪ «[\s\S]*?»\s*/.exec(value)
+  if (quoted) return { kind: 'quote', text: value.slice(quoted[0].length) }
+  return labelParts(value)
 }
 
 // --- Nhãn tệp gateway thêm khi tin không có chú thích ---

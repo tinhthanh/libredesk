@@ -37,8 +37,23 @@ describe('previewParts', () => {
     expect(previewParts('↪ «Trúc: form» gửi e ảnh')).toEqual({ kind: 'quote', text: 'gửi e ảnh' })
     expect(previewParts('👤 Chủ tài khoản trả lời trực tiếp (điện thoại/ứng dụng khác). · Chủ tài khoản ok')).toEqual({
       kind: 'owner',
-      text: 'ok'
+      text: 'ok',
+      innerKind: null
     })
+    // Chủ tài khoản gửi ảnh từ điện thoại: nhãn ảnh sau tiêu đề cũng thành loại.
+    expect(previewParts('👤 Chủ tài khoản trả lời trực tiếp (điện thoại/ứng dụng khác). 🖼️ Ảnh')).toEqual({
+      kind: 'owner',
+      text: 'Ảnh',
+      innerKind: 'image'
+    })
+    // Ghi chú sự kiện của gateway.
+    expect(previewParts('ℹ️ Thông báo. 🎴 ⏰ Thu nhac hen')).toEqual({ kind: 'system', text: 'Thông báo. 🎴 ⏰ Thu nhac hen' })
+    expect(previewParts('↩️ Khách đã thu hồi tin')).toEqual({ kind: 'recall', text: 'Khách đã thu hồi tin' })
+    expect(previewParts('✏️ Khách đã sửa tin')).toEqual({ kind: 'edit', text: 'Khách đã sửa tin' })
+    expect(previewParts('💬 Lan thả ❤️')).toEqual({ kind: 'reaction', text: 'Lan thả ❤️' })
+    expect(previewParts('👥 Lan đã tham gia nhóm')).toEqual({ kind: 'group', text: 'Lan đã tham gia nhóm' })
+    // Trích dẫn của khách (↪) không phải thu hồi (↩️).
+    expect(previewParts('↪ «A: b» ok').kind).toBe('quote')
     expect(previewParts('👤 Danh thiếp: Ngọc')).toEqual({ kind: 'contact', text: 'Danh thiếp: Ngọc' })
     expect(previewParts('xin chào')).toEqual({ kind: null, text: 'xin chào' })
     expect(previewParts(null)).toEqual({ kind: null, text: '' })
