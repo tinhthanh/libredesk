@@ -1,0 +1,39 @@
+name: omni-core
+
+# Logic dùng chung với app Vetgo (frontend/omni-core) và unit test frontend của nhánh omnichannel.
+# CI gốc (frontend-ci.yml) chỉ chạy cho main.
+on:
+  push:
+    branches: [omnichannel]
+    paths: ['frontend/**', '.github/workflows/omni-core.yml']
+  pull_request:
+    branches: [omnichannel]
+    paths: ['frontend/**', '.github/workflows/omni-core.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@9.15.3
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck omni-core
+        run: pnpm typecheck:omni-core
+
+      - name: Unit tests
+        run: pnpm test:run

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createEarlyUpdates } from './earlyUpdates'
+import { createEarlyUpdates } from './early-updates'
 
 describe('createEarlyUpdates', () => {
   it('gives back an update once, for the message it was for', () => {

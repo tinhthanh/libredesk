@@ -4,6 +4,16 @@
 // và thanh cuộc gọi hiện lại khi mở lại hội thoại đó.
 import { reactive, shallowRef } from 'vue'
 import api from '@main/api'
+import {
+  branchCallFor,
+  callStatusCode,
+  inboxAccount,
+  isCallActive,
+  pruneDialing as pruneDialingMap
+} from '@omni-core'
+
+// Quy tắc thuần (tên inbox, thời lượng, mã trạng thái) nằm ở omni-core, dùng chung với app Vetgo.
+export { DIAL_WAIT_MS, accountListed, formatCallDuration, secondsSince } from '@omni-core'
 
 export const call = reactive({
   id: '',
@@ -58,29 +68,18 @@ export function ensureCallFeature() {
 }
 
 // Tên tài khoản Zalo của hội thoại: inbox gateway đặt tên "Zalo - <tài khoản>".
-// accountListed: tài khoản của inbox (tên sau "<Kênh> - ") có trong danh sách gateway trả. Phòng khám
-// omi đặt tên tài khoản "<slug>.<tên>" trong danh sách còn inbox chỉ có "<tên>": khớp cả hai dạng (gateway
-// của một phòng khám chỉ có tài khoản của phòng khám đó).
-export function accountListed(list, name) {
-  if (!name || !Array.isArray(list)) return false
-  return list.some((a) => a === name || (typeof a === 'string' && a.endsWith('.' + name)))
-}
-
 export function zaloAccountOf(conversation) {
-  const name = conversation?.inbox_name || ''
-  return name.startsWith('Zalo - ') ? name.slice('Zalo - '.length) : ''
+  return inboxAccount(conversation, 'zalo')
 }
 
 // Cuộc gọi đang có trên điện thoại chi nhánh (kênh SMS qua vglink; gateway phonecalls.go):
 // thanh báo ở App hỏi GET /gw/calls/ringing và ghi vào đây; thanh cuộc gọi trong hội thoại đọc lại.
 // `dialing`: hội thoại vừa bấm 📞 -> lúc bấm (ms), tới khi điện thoại báo cuộc gọi.
 export const branchCalls = reactive({ list: [], dialing: {} })
-export const DIAL_WAIT_MS = 20 * 1000
 
 // Cuộc gọi của điện thoại chi nhánh thuộc hội thoại này, nếu có.
 export function branchCallOf(conversationUUID) {
-  if (!conversationUUID) return null
-  return branchCalls.list.find((c) => c.conversation_uuid === conversationUUID) || null
+  return branchCallFor(branchCalls.list, conversationUUID)
 }
 
 // Nghe máy / Từ chối / Cúp / Loa ngoài trên điện thoại chi nhánh. Trả '' hoặc lỗi để hiện toast
@@ -96,21 +95,12 @@ export async function branchCallAction(c, action) {
 
 // Bỏ các hội thoại "đang quay số" đã quá thời gian chờ (quay số không thành).
 export function pruneDialing(now = Date.now()) {
-  for (const [uuid, at] of Object.entries(branchCalls.dialing)) {
-    if (now - at >= DIAL_WAIT_MS) delete branchCalls.dialing[uuid]
-  }
-}
-
-// Giây đã qua kể từ một mốc RFC3339 (thời lượng trên thanh cuộc gọi).
-export function secondsSince(iso, now = Date.now()) {
-  const t = Date.parse(iso || '')
-  return Number.isNaN(t) ? 0 : Math.max(0, Math.floor((now - t) / 1000))
+  pruneDialingMap(branchCalls.dialing, now)
 }
 
 // Chi nhánh của hội thoại SMS: inbox gateway đặt tên "SMS - <chi nhánh>".
 export function smsAccountOf(conversation) {
-  const name = conversation?.inbox_name || ''
-  return name.startsWith('SMS - ') ? name.slice('SMS - '.length) : ''
+  return inboxAccount(conversation, 'sms')
 }
 
 // Luồng video cho cửa sổ gọi video (camera của mình và hình của khách).
@@ -134,22 +124,12 @@ let pollErrors = 0
 const POLL_MS = 1000
 const POLL_MAX_ERRORS = 15
 
-// Thời lượng "m:ss".
-export function formatCallDuration(secs) {
-  const s = Math.max(0, Math.floor(secs || 0))
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
-
 // Khoá i18n cho trạng thái hoặc lý do kết thúc (gateway/zalo-call `reason`).
 export function callStatusKey(state, reason) {
-  if (state === 'ended') {
-    const known = ['customer_hangup', 'agent_hangup', 'no_answer', 'rejected', 'busy', 'cancelled', 'browser_gone', 'max_duration', 'ended_before_answer', 'server_restart']
-    return `conversation.call.end.${known.includes(reason) ? reason : 'error'}`
-  }
-  return `conversation.call.state.${state || 'idle'}`
+  return `conversation.call.${callStatusCode(state, reason)}`
 }
 
-export const callActive = () => !['idle', 'ended'].includes(call.state)
+export const callActive = () => isCallActive(call.state)
 
 // Đợi ICE gom xong (offer không trickle), tối đa `ms`.
 export function waitIceGathering(peer, ms = 5000) {

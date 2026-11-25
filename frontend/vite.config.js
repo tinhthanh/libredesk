@@ -138,6 +138,8 @@ export default defineConfig(({ mode, command }) => {
         '@widget': path.resolve(__dirname, 'apps/widget/src'),
         '@shared-ui': path.resolve(__dirname, 'shared-ui'),
         '@public-static': path.resolve(__dirname, '../static/public/static'),
+        // Logic thuần dùng chung với app Vetgo (omni-core/README.md).
+        '@omni-core': path.resolve(__dirname, 'omni-core/src/index.ts'),
       },
     },
   }

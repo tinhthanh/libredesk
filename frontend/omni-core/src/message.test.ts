@@ -19,7 +19,7 @@ import {
   replyQuote,
   senderAvatarURL,
   stripGroupSender
-} from './omnichannel.js'
+} from './index'
 
 const group = { first_name: '👥 Nhóm A', last_name: '· Zalo acc2' }
 
@@ -81,7 +81,7 @@ describe('omnichannel quote replies', () => {
       text: 'Chị gửi file',
       body: '@Diep chị gửi e ảnh\nnha'
     })
-    expect(customerQuote('↪ «(tin được trả lời không còn trong bộ nhớ của bot)»\nok').author).toBe('')
+    expect(customerQuote('↪ «(tin được trả lời không còn trong bộ nhớ của bot)»\nok')?.author).toBe('')
     expect(customerQuote('không trích ↪ «A: b»\nx')).toBeNull()
     expect(quoteText('[Nhất]: ↪ «Trúc: form giấy»\nchị gửi e ảnh')).toBe('chị gửi e ảnh')
     expect(quotePreview('[Nhất]: ↪ «Trúc: form giấy» chị gửi e ảnh')).toBe('[Nhất]: ↩ chị gửi e ảnh')
@@ -161,17 +161,17 @@ describe('omnichannel owner replies', () => {
 
   it('splits the gateway heading from the reply', () => {
     expect(ownerReply(head + '<p>Xin chào</p>', false)).toEqual({ sender: 'Chủ tài khoản', body: '<p>Xin chào</p>' })
-    expect(ownerReply('<p><strong>👤 Chủ tài khoản trả lời trực tiếp (x)</strong> · An &amp; Bình</p><p>ok</p>', false).sender).toBe('An & Bình')
+    expect(ownerReply('<p><strong>👤 Chủ tài khoản trả lời trực tiếp (x)</strong> · An &amp; Bình</p><p>ok</p>', false)?.sender).toBe('An & Bình')
     expect(ownerReply('<p>Xin chào</p>', false)).toBe(null)
     expect(ownerReply('<p><strong>✏️ Tin nhắn đã được sửa</strong></p>', false)).toBe(null)
   })
 
   it('drops a media label only when the file is attached', () => {
-    expect(ownerReply(head + '<p>🖼️ Ảnh</p>', true).body).toBe('')
-    expect(ownerReply(head + '<p>🎬 Video · 0:11</p>', true).body).toBe('')
-    expect(ownerReply(head + '<p>📎 bao-gia.pdf</p>', true).body).toBe('')
-    expect(ownerReply(head + '<p>🖼️ Ảnh</p>', false).body).toBe('<p>🖼️ Ảnh</p>')
-    expect(ownerReply(head + '<p>Gửi anh ảnh</p>', true).body).toBe('<p>Gửi anh ảnh</p>')
+    expect(ownerReply(head + '<p>🖼️ Ảnh</p>', true)?.body).toBe('')
+    expect(ownerReply(head + '<p>🎬 Video · 0:11</p>', true)?.body).toBe('')
+    expect(ownerReply(head + '<p>📎 bao-gia.pdf</p>', true)?.body).toBe('')
+    expect(ownerReply(head + '<p>🖼️ Ảnh</p>', false)?.body).toBe('<p>🖼️ Ảnh</p>')
+    expect(ownerReply(head + '<p>Gửi anh ảnh</p>', true)?.body).toBe('<p>Gửi anh ảnh</p>')
   })
 
   it('shortens the list preview', () => {
@@ -181,7 +181,7 @@ describe('omnichannel owner replies', () => {
 })
 
 describe('imagePreviewSrc', () => {
-  const thumb = (url) => `thumb:${url}`
+  const thumb = (url: string | null | undefined) => `thumb:${url}`
   it('keeps animated GIFs playing with the original file', () => {
     expect(imagePreviewSrc({ content_type: 'image/gif', url: '/uploads/a', thumbnail_url: '/t' }, thumb)).toBe('/uploads/a')
   })
