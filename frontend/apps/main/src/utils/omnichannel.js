@@ -83,15 +83,7 @@ export function omniListPreview(conversation) {
   return { sender: sender?.[1] || '', kind: parts.kind, text: parts.text }
 }
 
-// Gateway notes start with one of these when the server has no
-// last_message_omni_event field (older Libredesk).
-const NOTE_START = /^(📞|↩️|✏️|💬|👥|🤝|ℹ️|⚠️|👤)/u
-
-// lastMessageByStaff: the last message is a reply a staff member wrote, not a
-// gateway note (calls, recalls, owner replies...) that Libredesk also counts
-// as the agent's.
-export function lastMessageByStaff(conversation) {
-  if (conversation?.last_message_sender !== 'agent') return false
-  if (conversation && 'last_message_omni_event' in conversation) return !conversation.last_message_omni_event
-  return !NOTE_START.test(conversation?.last_message || '')
-}
+// lastMessageByStaff (omni-core): the last message is a reply a staff member
+// wrote, not a gateway note or a Libredesk activity line, which Libredesk also
+// counts as the agent's.
+export { lastMessageByStaff } from '@omni-core'

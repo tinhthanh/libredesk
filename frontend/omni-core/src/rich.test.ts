@@ -3,7 +3,9 @@ import {
   OMNI_EVENT_SINCE,
   contentLines,
   eventNote,
+  isActivityText,
   isAttachmentLabelOnly,
+  lastMessageByStaff,
   previewParts,
   richCard,
   videoDuration
@@ -139,5 +141,21 @@ describe('file labels', () => {
     expect(isAttachmentLabelOnly('<p>🖼️ Ảnh</p>', [])).toBe(false)
     expect(videoDuration('<p>🎬 Video · 0:05</p>')).toBe('0:05')
     expect(videoDuration('x')).toBe('')
+  })
+})
+
+describe('lastMessageByStaff', () => {
+  const agent = { last_message_sender: 'agent' }
+  it('tells staff replies from gateway notes and Libredesk activity lines', () => {
+    expect(lastMessageByStaff({ ...agent, last_message: 'dạ vâng', last_message_omni_event: null })).toBe(true)
+    expect(lastMessageByStaff({ ...agent, last_message: '📞 x', last_message_omni_event: 'call' })).toBe(false)
+    expect(lastMessageByStaff({ ...agent, last_message: '📞 x', last_message_omni_event: null, last_message_at: '2026-11-21T00:00:00Z' })).toBe(false)
+    expect(lastMessageByStaff({ ...agent, last_message: '📞 x', last_message_omni_event: null, last_message_at: '2026-11-24T00:00:00Z' })).toBe(true)
+    expect(lastMessageByStaff({ ...agent, last_message: '👤 Chủ tài khoản trả lời trực tiếp (x). ok' })).toBe(false)
+    expect(lastMessageByStaff({ ...agent, last_message: 'Assigned to Lan by System' })).toBe(false)
+    expect(lastMessageByStaff({ last_message_sender: 'contact', last_message: 'hi' })).toBe(false)
+    expect(lastMessageByStaff(null)).toBe(false)
+    expect(isActivityText('System  marked the conversation as Resolved')).toBe(true)
+    expect(isActivityText('Đã thêm thẻ')).toBe(false)
   })
 })
