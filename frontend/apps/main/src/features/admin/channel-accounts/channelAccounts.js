@@ -1,49 +1,55 @@
 // Helpers for the channel accounts page (omnichannel fork). The gateway exposes
-// /gw/accounts on the Libredesk origin; bots answer in Vietnamese.
+// /gw/accounts on the Libredesk origin; bots answer in Vietnamese. The pure
+// rules live in omni-core (shared with the Vetgo app); this file maps their
+// codes to Libredesk badges, Tailwind classes and i18n keys.
+import {
+  accountStatus as accountStatusCode,
+  accountState,
+  formatShortTime,
+  historyEntries as historyItems,
+  installerErrorText,
+  installerFilename,
+  installerPath
+} from '@omni-core'
 
-export const ACCOUNT_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/
+export {
+  ACCOUNT_NAME_PATTERN,
+  needsSignIn,
+  accountReason,
+  isValidAccountName,
+  isLoginFinished,
+  accountDisplayName as displayName,
+  accountNeedsAttention,
+  countAccountAlerts,
+  connectedAt,
+  oauthFinished,
+  pageSlug,
+  loginPending,
+  canaryChecks,
+  installerFilename
+} from '@omni-core'
 
-// Bot account state -> badge variant and i18n key.
-const STATES = {
-  running: { variant: 'success', key: 'admin.channelAccounts.state.running' },
-  starting: { variant: 'secondary', key: 'admin.channelAccounts.state.starting' },
-  retrying: { variant: 'secondary', key: 'admin.channelAccounts.state.retrying' },
-  dropped: { variant: 'destructive', key: 'admin.channelAccounts.state.dropped' },
-  stopped: { variant: 'outline', key: 'admin.channelAccounts.state.stopped' }
+// Account status -> badge variant and i18n key.
+const VARIANTS = {
+  running: 'success',
+  starting: 'secondary',
+  retrying: 'secondary',
+  dropped: 'destructive',
+  stopped: 'outline',
+  disconnected: 'destructive'
 }
 
+const badge = (status) => ({ variant: VARIANTS[status], key: `admin.channelAccounts.state.${status}` })
+
+// Bot account state -> badge (unknown states show as stopped).
 export function stateInfo (state) {
-  return STATES[state] || STATES.stopped
-}
-
-// The bot reports its last error as {kind, message}; "session_expired" means
-// the platform signed the account out, so only signing in again helps.
-export function needsSignIn (account) {
-  return account?.error?.kind === 'session_expired'
+  return badge(accountState(state))
 }
 
 // Badge for an account: a dropped account is "Signed out" only when the
 // session expired, otherwise it lost its connection and Reconnect may help.
 export function accountStatus (account) {
-  if (account?.state === 'dropped' && !needsSignIn(account)) {
-    return { variant: 'destructive', key: 'admin.channelAccounts.state.disconnected' }
-  }
-  return stateInfo(account?.state)
-}
-
-// Reason line under the account name (hidden while connected).
-export function accountReason (account) {
-  if (!account || account.state === 'running') return ''
-  return account.error?.message || ''
-}
-
-export function isValidAccountName (name) {
-  return ACCOUNT_NAME_PATTERN.test(name || '')
-}
-
-// Login session states that need no more polling.
-export function isLoginFinished (status) {
-  return ['success', 'error', 'cancelled', 'busy'].includes(status)
+  return badge(accountStatusCode(account))
 }
 
 // Error text from a gateway/bot response ({error} or {message}) or axios error.
@@ -54,152 +60,36 @@ export function errorMessage (error) {
   return error?.message || 'Error'
 }
 
-export function displayName (account) {
-  return account?.profile?.displayName || account?.name || ''
-}
-
-// Accounts that need an admin: signed out, or dropped after giving up retrying.
-export function accountNeedsAttention (account) {
-  return needsSignIn(account) || account?.state === 'dropped'
-}
-
-// countAccountAlerts counts such accounts across the /gw/accounts channels.
-export function countAccountAlerts (channels) {
-  return (channels || []).reduce(
-    (n, c) => n + (c.accounts || []).filter(accountNeedsAttention).length,
-    0
-  )
-}
-
-// Connection history from the bot (newest first): {at, kind, message, count?,
-// last_at?}. Each kind gets an icon so the cause of a drop is easy to scan.
-const HISTORY_KINDS = {
-  connected: { icon: '🟢', tone: 'text-muted-foreground' },
-  manual: { icon: '🔁', tone: 'text-muted-foreground' },
-  network: { icon: '📶', tone: 'text-amber-600 dark:text-amber-400' },
-  disconnected: { icon: '🟠', tone: 'text-amber-600 dark:text-amber-400' },
-  platform: { icon: '⚠️', tone: 'text-destructive' },
-  session_expired: { icon: '🔴', tone: 'text-destructive' }
+// Connection history (newest first) with a Tailwind tone per level.
+const TONES = {
+  info: 'text-muted-foreground',
+  warn: 'text-amber-600 dark:text-amber-400',
+  error: 'text-destructive'
 }
 
 export function historyEntries (account, locale) {
-  const time = (value) => {
-    const date = new Date(value)
-    return Number.isNaN(date.getTime())
-      ? ''
-      : date.toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-  }
-  return (Array.isArray(account?.history) ? account.history : []).map((item) => ({
-    ...(HISTORY_KINDS[item.kind] || HISTORY_KINDS.disconnected),
-    at: time(item.at),
-    lastAt: item.count > 1 ? time(item.last_at) : '',
-    count: item.count > 1 ? item.count : 0,
-    message: item.message || ''
+  return historyItems(account, locale).map(({ icon, level, at, lastAt, count, message }) => ({
+    icon,
+    tone: TONES[level],
+    at,
+    lastAt,
+    count,
+    message
   }))
-}
-
-// Zalo OA: the OA admin grants access on Zalo's page and the bot finishes on
-// its callback. connectedAt is the account's last grant time (or ''); the grant
-// is done once the account shows a different one.
-export function connectedAt (channels, channel, name) {
-  const found = (channels || []).find((c) => c.channel === channel)
-  const account = (found?.accounts || []).find((a) => a.name === name)
-  return account?.profile?.connected_at || ''
-}
-
-export function oauthFinished (channels, channel, name, before) {
-  const now = connectedAt(channels, channel, name)
-  return now !== '' && now !== before
-}
-
-// Fanpage Web: suggested account name for a Page, short because it ends up in
-// the inbox name ("VetGo phần mềm quản lý" -> "vetgo-phan-mem"): first 3 words,
-// at most 20 characters, never cut inside a word unless the first word is longer.
-export function pageSlug (name) {
-  const words = String(name || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[đĐ]/g, 'd')
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter(Boolean)
-    .slice(0, 3)
-  let slug = ''
-  for (const w of words) {
-    const next = slug ? `${slug}-${w}` : w
-    if (next.length > 20) break
-    slug = next
-  }
-  if (!slug && words.length) slug = words[0].slice(0, 20)
-  return slug || 'trang'
-}
-
-// Fanpage Web: a login still listing its Pages (or not yet seen by an agent).
-export function loginPending (logins, name) {
-  const login = (logins || []).find((l) => l.name === name)
-  return !login || login.state === 'listing'
 }
 
 // Alerts page: when a mute ends (Unix seconds, 0 = until switched back on).
 export function muteLabel (until, t, locale) {
   if (!until) return t('admin.channelAlerts.mutedForever')
-  const at = new Date(until * 1000).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-  return t('admin.channelAlerts.mutedUntil', { at })
+  return t('admin.channelAlerts.mutedUntil', { at: formatShortTime(until * 1000, locale) })
 }
 
-// Daily canary page: the checks of one stored run, with problems found by the
-// server script (containers, logs) first; detail is the check's extra fields.
-export function canaryChecks (run) {
-  const report = run?.report || {}
-  const problems = String(report.problems || '')
-    .split(';')
-    .map((p) => p.trim().replace(/^- /, ''))
-    .filter(Boolean)
-    .map((p) => ({ check: p, ok: false, detail: '' }))
-  const checks = (report.canary?.checks || []).map(({ check, ok, ...rest }) => ({
-    check,
-    ok: !!ok,
-    detail: Object.entries(rest)
-      .filter(([, v]) => v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length) &&
-        !(typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length))
-      .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
-      .join(', ')
-  }))
-  return [...problems, ...checks]
-}
-
-// SMS: per-branch installer zip from the gateway (GET /gw/accounts/sms/{name}/installer).
-// The gateway makes a new link code for every download, so a PC linked with the
-// old code disconnects until it is reinstalled with the new package.
+// SMS: per-branch installer zip from the gateway.
 export function installerUrl (name) {
-  return `/gw/accounts/sms/${encodeURIComponent(name)}/installer`
+  return installerPath(name)
 }
 
-// File name from Content-Disposition (filename* in RFC 5987 first), without any
-// path; falls back to Vetgo-Phone-<branch>.zip.
-export function installerFilename (header, branch) {
-  const fallback = `Vetgo-Phone-${branch}.zip`
-  const value = String(header || '')
-  let name = ''
-  const star = value.match(/filename\*\s*=\s*([^;]+)/i)
-  if (star) {
-    const raw = star[1].trim().replace(/^"(.*)"$/, '$1').replace(/^[^']*'[^']*'/, '')
-    try {
-      name = decodeURIComponent(raw)
-    } catch {
-      name = ''
-    }
-  }
-  if (!name) {
-    const plain = value.match(/filename\s*=\s*("((?:[^"\\]|\\.)*)"|[^;]+)/i)
-    if (plain) name = plain[2] !== undefined ? plain[2].replace(/\\(.)/g, '$1') : plain[1].trim()
-  }
-  name = name.split(/[\\/]/).pop().trim()
-  return name || fallback
-}
-
-// Error text from a failed installer response: the gateway's {error} JSON
-// (501 when no installer is configured), else the plain body, else the status.
+// Error text from a failed installer response (see installerErrorText).
 export async function installerError (response) {
   let text = ''
   try {
@@ -207,15 +97,7 @@ export async function installerError (response) {
   } catch {
     text = ''
   }
-  try {
-    const data = JSON.parse(text)
-    if (data && typeof data === 'object' && (data.error || data.message)) return String(data.error || data.message)
-  } catch {
-    // not JSON
-  }
-  const plain = text.trim()
-  if (plain && plain.length < 300 && !plain.startsWith('<')) return plain
-  return `HTTP ${response.status}`
+  return installerErrorText(response.status, text)
 }
 
 // Download the branch's installer with the admin session cookie. Returns

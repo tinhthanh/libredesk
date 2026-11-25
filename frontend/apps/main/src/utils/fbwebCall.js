@@ -10,14 +10,32 @@
 // Trạng thái là singleton ở cấp module: đổi hội thoại thì cuộc gọi vẫn tiếp tục.
 import { reactive, shallowRef } from 'vue'
 import api from '@main/api'
+import {
+  CAMERA_POLL_MS,
+  OUTGOING_RING_MS,
+  cameraState,
+  decodedFrames,
+  fbwebCallGone,
+  fbwebKey,
+  fbwebSilenceKey as silenceKey,
+  inboxAccount,
+  liveSilenceKeys,
+  withRing
+} from '@omni-core'
 
-export const FBWEB_CHANNEL = 'fb-bridge-web'
-export const OUTGOING_RING_MS = 60 * 1000
-// Camera của khách: Facebook giữ track video live và không mute khi khách tắt camera, nên
-// onmute/onunmute không báo được. Đếm khung hình đã giải mã (getStats) mỗi giây; không có khung
-// mới trong CAMERA_IDLE_MS thì coi là camera tắt.
-export const CAMERA_POLL_MS = 1000
-export const CAMERA_IDLE_MS = 2000
+// Hằng số và quy tắc thuần (khoá cuộc gọi, ring_id, đếm khung hình camera) nằm ở omni-core, dùng chung
+// với app Vetgo. Camera của khách: Facebook giữ track video live và không mute khi khách tắt camera, nên
+// đếm khung hình đã giải mã (getStats); không có khung mới trong CAMERA_IDLE_MS thì coi là camera tắt.
+export {
+  FBWEB_CHANNEL,
+  OUTGOING_RING_MS,
+  CAMERA_POLL_MS,
+  CAMERA_IDLE_MS,
+  fbwebKey,
+  isFbwebCall,
+  decodedFrames,
+  cameraState
+} from '@omni-core'
 
 export const fbwebCall = reactive({
   key: '', // `${account}:${call_id}` như danh sách cuộc gọi của gateway
@@ -48,19 +66,9 @@ let audio = null
 let seq = 0
 let cameraTimer = null
 
-export const fbwebKey = (c) => `${c.account}:${c.call_id}`
-
-// Thân yêu cầu kèm ring_id (gateway cũ không có ring_id: gửi như trước).
-const withRing = (body, ringId) => (ringId ? { ...body, ring_id: ringId } : body)
-
-export function isFbwebCall (c) {
-  return c?.channel === FBWEB_CHANNEL
-}
-
 // Tên Trang của hội thoại Fanpage Web: inbox gateway đặt tên "Fanpage Web - <tài khoản>".
 export function fbwebAccountOf (conversation) {
-  const name = conversation?.inbox_name || ''
-  return name.startsWith('Fanpage Web - ') ? name.slice('Fanpage Web - '.length) : ''
+  return inboxAccount(conversation, 'fanpage-web')
 }
 
 export function fbwebSupported () {
@@ -69,23 +77,6 @@ export function fbwebSupported () {
 
 function munge (sdp) {
   return sdp.replace(/a=fmtp:111 [^\r\n]*/, 'a=fmtp:111 ' + OPUS_FMTP)
-}
-
-// Số khung hình video đã giải mã của track trong một báo cáo getStats (0 nếu chưa có).
-export function decodedFrames (report, trackId) {
-  let frames = 0
-  report?.forEach?.((s) => {
-    if (s.type !== 'inbound-rtp' || (s.kind || s.mediaType) !== 'video') return
-    if (trackId && s.trackIdentifier && s.trackIdentifier !== trackId) return
-    frames = Math.max(frames, s.framesDecoded || 0)
-  })
-  return frames
-}
-
-// cameraState: trạng thái mới từ lần đếm trước { frames, at, on } và số khung hình hiện tại.
-export function cameraState (prev, frames, now, idleMs = CAMERA_IDLE_MS) {
-  if (frames > prev.frames) return { frames, at: now, on: true }
-  return { frames: Math.max(frames, prev.frames), at: prev.at, on: prev.on && now - prev.at < idleMs }
 }
 
 function stopCameraWatch () {
@@ -297,7 +288,6 @@ export async function callFbwebCustomer (conversation, ringMs = OUTGOING_RING_MS
 // Khoá kèm `since`: Messenger dùng lại mã phòng cho mọi cuộc gọi giữa khách và Trang, lời mời mới
 // có `since` mới nên đổ chuông lại.
 const silenced = reactive(new Set())
-const silenceKey = (c) => `${fbwebKey(c)}:${c.since || ''}`
 
 export function silenceFbwebCall (c) {
   silenced.add(silenceKey(c))
@@ -309,7 +299,7 @@ export function isFbwebSilenced (c) {
 
 // Quên các cuộc đã tắt chuông khi chúng không còn đổ chuông trong danh sách mới của gateway.
 export function pruneFbwebSilenced (list) {
-  const live = new Set(list.filter((c) => isFbwebCall(c) && c.state === 'ringing').map(silenceKey))
+  const live = liveSilenceKeys(list)
   for (const k of silenced) if (!live.has(k)) silenced.delete(k)
 }
 
@@ -340,8 +330,7 @@ export function toggleFbwebMute () {
 // Cuộc gọi đi tự theo dõi qua wait.
 export function syncFbwebCall (list) {
   if (fbwebCall.state !== 'in_call' || fbwebCall.outgoing) return
-  const cur = list.find((c) => fbwebKey(c) === fbwebCall.key)
-  if (!cur || (fbwebCall.ringId && cur.ring_id && cur.ring_id !== fbwebCall.ringId)) {
+  if (fbwebCallGone(list, fbwebCall.key, fbwebCall.ringId)) {
     seq++
     cleanup()
   }

@@ -3,6 +3,10 @@
 // chiều (gateway -> sms-bridge -> Vetgo Phone Desktop -> CallAudio qua cáp USB). Worklet giống trang
 // "Điện thoại qua web" của vglink (web/phone.html). Singleton cấp module: đổi hội thoại vẫn nghe tiếp.
 import { reactive } from 'vue'
+import { upsample } from '@omni-core'
+
+// needsCable và upsample (PCM 16 kHz -> tần số của AudioContext) nằm ở omni-core, dùng chung với app Vetgo.
+export { needsCable, upsample } from '@omni-core'
 
 export const branchAudio = reactive({
   // account + ':' + call_id của cuộc gọi đang nghe trên máy tính, '' nếu không.
@@ -13,10 +17,6 @@ export const branchAudio = reactive({
   // Lý do lần mở gần nhất không được (gateway/agent gửi tiếng Việt qua close 4001).
   error: ''
 })
-
-// Điện thoại chi nhánh không nối cáp (sms-bridge báo computer_audio=false): tiếng không sang máy
-// tính được, nên không bắt máy từ đây (khách nghe máy mà không ai nghe). Không rõ thì không chặn.
-export const needsCable = (call) => call?.computer_audio === false
 
 // Hội thoại vừa bấm Nghe máy / 📞: tự chuyển tiếng sang máy tính khi cuộc gọi bắt đầu nói.
 export const audioWanted = reactive({})
@@ -63,21 +63,6 @@ let node = null
 let micSource = null
 let micStream = null
 let ws = null
-
-// PCM 16 kHz -> Float32 ở tần số của AudioContext (nội suy tuyến tính).
-export function upsample(pcm, rate) {
-  const n = Math.round((pcm.length * rate) / 16000)
-  const out = new Float32Array(n)
-  for (let i = 0; i < n; i++) {
-    const x = (i * 16000) / rate
-    const j = Math.floor(x)
-    const f = x - j
-    const a = pcm[j] || 0
-    const b = pcm[Math.min(j + 1, pcm.length - 1)] || 0
-    out[i] = (a + (b - a) * f) / 32768
-  }
-  return out
-}
 
 // Gọi trong lúc người dùng bấm nút: trình duyệt chỉ cho phát tiếng sau một thao tác.
 export async function prepareAudio() {
