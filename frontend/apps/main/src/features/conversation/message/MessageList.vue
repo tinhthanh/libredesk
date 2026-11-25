@@ -48,7 +48,10 @@
               />
             </div>
             <div v-else-if="row.message.type === 'outgoing' && row.message.private">
+              <!-- omnichannel: gateway notes as a compact event line -->
+              <OmniEventNote v-if="row.event" :message="row.message" :note="row.event" />
               <MessageBubble
+                v-else
                 :message="row.message"
                 direction="outgoing"
                 :group-with-prev="row.groupWithPrev"
@@ -86,12 +89,19 @@
 </template>
 
 <script setup>
-import { groupSender, isOmnichannelInbox, ownerReply } from '@main/utils/omnichannel.js'
+import {
+  groupSender,
+  hasOmniMarkers,
+  isOmnichannelInbox,
+  omniEventNote,
+  ownerReply
+} from '@main/utils/omnichannel.js'
 import api from '@main/api'
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import MessageBubble from './MessageBubble.vue'
 import ActivityMessageBubble from './ActivityMessageBubble.vue'
+import OmniEventNote from './OmniEventNote.vue'
 import { useConversationStore } from '@main/stores/conversation'
 import { useUserStore } from '@main/stores/user'
 import { Button } from '@shared-ui/components/ui/button'
@@ -330,11 +340,19 @@ const loadMore = async () => {
 
 const messageRows = computed(() => {
   const messages = conversationStore.conversationMessages
+  // omnichannel: gateway notes drawn as event lines never group with bubbles.
+  const markersSeen = hasOmniMarkers(messages)
+  const events = messages.map((m) =>
+    m.private ? omniEventNote(m, conversationStore.current, markersSeen) : null
+  )
   return messages.map((message, index) => {
-    const groupWithPrev = canGroup(messages[index - 1], message)
-    const groupWithNext = canGroup(message, messages[index + 1])
+    const groupWithPrev =
+      !events[index] && !events[index - 1] && canGroup(messages[index - 1], message)
+    const groupWithNext =
+      !events[index] && !events[index + 1] && canGroup(message, messages[index + 1])
     return {
       message,
+      event: events[index],
       groupWithPrev,
       groupWithNext,
       spacingClass: getSpacingClass(index, groupWithPrev),

@@ -140,8 +140,15 @@
                 class="relative"
                 :class="{ 'max-h-[400px] overflow-hidden': isExpandable && !isExpanded }"
               >
+                <!-- omnichannel: link, contact card, poll, location... as a card -->
+                <OmniRichCard
+                  v-if="rich"
+                  :card="rich"
+                  class="mb-1"
+                  :class="{ 'mb-3': message.attachments.length > 0 }"
+                />
                 <div
-                  v-if="message.content_type === 'text'"
+                  v-else-if="message.content_type === 'text'"
                   class="mb-1 native-html whitespace-pre-wrap"
                   :class="{ 'mb-3': message.attachments.length > 0 }"
                 >
@@ -440,6 +447,7 @@ import ImageLightbox from '@/components/ImageLightbox.vue'
 import BubbleAttachmentPreview from '@main/features/conversation/message/attachment/BubbleAttachmentPreview.vue'
 import MessageEnvelope from './MessageEnvelope.vue'
 import CSATResponseDisplay from './CSATResponseDisplay.vue'
+import OmniRichCard from './OmniRichCard.vue'
 import api from '@main/api'
 import { useEmitter } from '@main/composables/useEmitter'
 import { EMITTER_EVENTS } from '@main/constants/emitterEvents.js'
@@ -452,6 +460,7 @@ import {
   isOmnichannelInbox,
   isStickerOnly,
   nextReaction,
+  omniRichCard,
   ownerReply,
   quoteTarget,
   REACTION_CHOICES,
@@ -617,6 +626,9 @@ const replyLabel = computed(() => {
   const sender = getFullName.value.replace(/ ·.*$/, '')
   return name ? t('conversation.theyRepliedTo', { sender, name }) : t('conversation.theyReplied', { sender })
 })
+
+// omnichannel: a structured message (link, contact card, poll, location...) drawn as a card
+const rich = computed(() => omniRichCard(props.message, convStore.current))
 
 // omnichannel: owner reply note, its long heading turned into a chip
 const owner = computed(() =>
