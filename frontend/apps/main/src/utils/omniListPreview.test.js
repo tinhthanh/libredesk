@@ -9,13 +9,24 @@ describe('conversation list preview for gateway inboxes', () => {
     expect(omniListPreview(conv('[Nguyen Van B]: 📊 Nguyen Van B cập nhật bình chọn: lich kham?'))).toEqual({
       sender: 'Nguyen Van B',
       kind: 'poll',
+      innerKind: null,
       text: 'Nguyen Van B cập nhật bình chọn: lich kham?'
     })
-    expect(omniListPreview(conv('🖼️ Ảnh'))).toEqual({ sender: '', kind: 'image', text: 'Ảnh' })
-    expect(omniListPreview(conv('📞 Cuộc gọi thoại nhỡ'))).toEqual({ sender: '', kind: 'call', text: 'Cuộc gọi thoại nhỡ' })
-    expect(omniListPreview(conv('↪ «Trúc: form» gửi e ảnh'))).toEqual({ sender: '', kind: 'quote', text: 'gửi e ảnh' })
-    expect(omniListPreview(conv('xin chào'))).toEqual({ sender: '', kind: null, text: 'xin chào' })
-    expect(omniListPreview(conv(null))).toEqual({ sender: '', kind: null, text: '' })
+    expect(omniListPreview(conv('🖼️ Ảnh'))).toEqual({ sender: '', kind: 'image', innerKind: null, text: 'Ảnh' })
+    expect(omniListPreview(conv('📞 Cuộc gọi thoại nhỡ'))).toEqual({ sender: '', kind: 'call', innerKind: null, text: 'Cuộc gọi thoại nhỡ' })
+    expect(omniListPreview(conv('↪ «Trúc: form» gửi e ảnh'))).toEqual({ sender: '', kind: 'quote', innerKind: null, text: 'gửi e ảnh' })
+    expect(omniListPreview(conv('xin chào'))).toEqual({ sender: '', kind: null, innerKind: null, text: 'xin chào' })
+    expect(omniListPreview(conv(null))).toEqual({ sender: '', kind: null, innerKind: null, text: '' })
+  })
+
+  it('reads the owner reply label and gateway event notes', () => {
+    expect(omniListPreview(conv('👤 Chủ tài khoản trả lời trực tiếp (điện thoại/ứng dụng khác). 🖼️ Ảnh'))).toEqual({
+      sender: '',
+      kind: 'owner',
+      innerKind: 'image',
+      text: 'Ảnh'
+    })
+    expect(omniListPreview(conv('ℹ️ Thông báo. ⏰ Thu nhac hen'))?.kind).toBe('system')
   })
 
   it('leaves other inboxes to the default preview', () => {
@@ -42,7 +53,7 @@ describe('conversation list preview for gateway inboxes', () => {
   })
 
   it('has an icon for every kind', () => {
-    const kinds = ['owner', 'quote', 'sticker', 'image', 'file', 'video', 'audio', 'call', 'link', 'contact', 'poll', 'location', 'todo', 'friend', 'alert']
+    const kinds = ['owner', 'quote', 'sticker', 'image', 'file', 'video', 'audio', 'call', 'link', 'contact', 'poll', 'location', 'todo', 'friend', 'alert', 'system', 'recall', 'edit', 'reaction', 'group']
     for (const k of kinds) expect(OMNI_PREVIEW_ICONS[k], k).toBeTruthy()
   })
 })

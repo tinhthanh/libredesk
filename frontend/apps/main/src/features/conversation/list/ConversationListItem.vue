@@ -127,6 +127,12 @@
                     class="text-muted-foreground inline-block align-text-bottom mr-0.5"
                     :size="14"
                     :data-omni-preview="omniPreview.kind"
+                  /><component
+                    :is="omniPreviewInnerIcon"
+                    v-if="omniPreviewInnerIcon"
+                    class="text-muted-foreground inline-block align-text-bottom mr-0.5"
+                    :size="14"
+                    :data-omni-preview-inner="omniPreview.innerKind"
                   />{{ omniPreviewText }}
                 </template>
                 <!-- omnichannel: owner replied from the phone, shown as an icon -->
@@ -285,6 +291,9 @@ const ownerLastMessage = computed(() => ownerPreview(trimmedLastMessage.value))
 // omnichannel: gateway inboxes (omni-core previewParts)
 const omniPreview = computed(() => omniListPreview(props.conversation))
 const omniPreviewIcon = computed(() => (omniPreview.value?.kind ? OMNI_PREVIEW_ICONS[omniPreview.value.kind] : null))
+const omniPreviewInnerIcon = computed(() =>
+  omniPreview.value?.innerKind ? OMNI_PREVIEW_ICONS[omniPreview.value.innerKind] : null
+)
 const omniPreviewText = computed(() => {
   const text = omniPreview.value?.text || ''
   return text.length > 120 ? text.slice(0, 120) + '...' : text

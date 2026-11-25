@@ -80,7 +80,7 @@ export function omniListPreview(conversation) {
   const text = conversation?.last_message || ''
   const sender = GROUP_SENDER.exec(text)
   const parts = previewParts(sender ? text.slice(sender[0].length) : text)
-  return { sender: sender?.[1] || '', kind: parts.kind, text: parts.text }
+  return { sender: sender?.[1] || '', kind: parts.kind, innerKind: parts.innerKind || null, text: parts.text }
 }
 
 // lastMessageByStaff (omni-core): the last message is a reply a staff member

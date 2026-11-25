@@ -2,6 +2,11 @@
 // icons the Vetgo app uses).
 import {
   ChartBar,
+  Info,
+  MessageCircleHeart,
+  Pencil,
+  Undo2,
+  Users,
   Contact,
   Image,
   Link,
@@ -33,5 +38,10 @@ export const OMNI_PREVIEW_ICONS = {
   location: MapPin,
   todo: SquareCheck,
   friend: UserPlus,
-  alert: TriangleAlert
+  alert: TriangleAlert,
+  system: Info,
+  recall: Undo2,
+  edit: Pencil,
+  reaction: MessageCircleHeart,
+  group: Users
 }
