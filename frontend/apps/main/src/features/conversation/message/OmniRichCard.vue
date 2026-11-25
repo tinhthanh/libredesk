@@ -37,6 +37,23 @@
         {{ t(richActionKey(card.kind)) }}
         <ExternalLink :size="12" />
       </a>
+      <!-- omnichannel: accept a customer's Zalo friend request from the inbox -->
+      <Button
+        v-if="friendAction"
+        size="sm"
+        variant="outline"
+        class="mt-2"
+        :disabled="friendAction !== 'accept'"
+        data-omni-friend-accept
+        @click="emit('accept-friend')"
+      >
+        <UserCheck :size="14" class="mr-1" />
+        {{
+          friendAction === 'accepted'
+            ? t('conversation.omni.friend.accepted')
+            : t('conversation.omni.friend.accept')
+        }}
+      </Button>
     </div>
   </div>
 </template>
@@ -54,15 +71,22 @@ import {
   PhoneMissed,
   ShieldAlert,
   SquareCheck,
+  UserCheck,
   UserPlus,
   Video
 } from 'lucide-vue-next'
+import { Button } from '@shared-ui/components/ui/button'
 import { richActionKey } from '@main/utils/omnichannel.js'
 
 const props = defineProps({
   // omni-core richCard(message): { kind, title, lines, url, pollAction, options, missed }
-  card: { type: Object, required: true }
+  card: { type: Object, required: true },
+  // Friend request card: 'accept' shows the button, 'busy' while sending,
+  // 'accepted' after Zalo accepted; '' hides it.
+  friendAction: { type: String, default: '' }
 })
+
+const emit = defineEmits(['accept-friend'])
 
 const { t } = useI18n()
 

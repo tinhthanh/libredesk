@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import {
   eventNote,
   isOmnichannelInbox,
+  omniChannel,
   previewParts,
   quoteTarget as coreQuoteTarget,
   richCard
@@ -87,3 +88,16 @@ export function omniListPreview(conversation) {
 // wrote, not a gateway note or a Libredesk activity line, which Libredesk also
 // counts as the agent's.
 export { lastMessageByStaff } from '@omni-core'
+
+// canAcceptFriend: a customer's Zalo friend request card (omni-core richCard
+// kind 'friend') in a Zalo 1-1 conversation can be accepted from the inbox
+// (gateway POST /gw/conversations/{uuid}/friend/accept). Zalo refuses calls
+// between strangers, so this is also what makes calling possible.
+export function canAcceptFriend(card, message, conversation) {
+  return (
+    card?.kind === 'friend' &&
+    message?.type === 'incoming' &&
+    !message?.private &&
+    omniChannel(conversation) === 'zalo'
+  )
+}

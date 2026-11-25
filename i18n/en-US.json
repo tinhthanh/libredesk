@@ -849,6 +849,8 @@
   "conversation.ownerReply": "Account owner",
   "conversation.ownerReplyHint": "The account owner replied directly from the phone or another app",
   "conversation.omni.event.privateNote": "Private note",
+  "conversation.omni.friend.accept": "Accept friend request",
+  "conversation.omni.friend.accepted": "Friend request accepted",
   "conversation.omni.rich.link": "Link",
   "conversation.omni.rich.contact": "Contact card",
   "conversation.omni.rich.poll": "Poll",
