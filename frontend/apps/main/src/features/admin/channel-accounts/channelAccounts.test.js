@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   accountReason,
+  branchKey,
+  branchSettingsFrom,
+  isValidBranchId,
+  noBranchSettings,
   countAccountAlerts,
   accountStatus,
   connectedAt,
@@ -181,5 +185,21 @@ describe('channel accounts helpers', () => {
     expect(calls).toEqual([['/gw/accounts/sms/q1/installer', { credentials: 'include' }]])
     const notConfigured = async () => ({ ok: false, status: 501, text: async () => '{"error":"Chưa có bộ cài"}' })
     await expect(fetchInstaller('q1', notConfigured)).rejects.toThrow('Chưa có bộ cài')
+  })
+
+  it('keys and validates branch codes like the gateway', () => {
+    expect(branchKey('zalo', 'vetgo-test.acc2')).toBe('zalo/vetgo-test.acc2')
+    expect(isValidBranchId('B1')).toBe(true)
+    expect(isValidBranchId('branch_001')).toBe(true)
+    expect(isValidBranchId('  ')).toBe(true)
+    expect(isValidBranchId('B 1')).toBe(false)
+    expect(isValidBranchId('chi-nhánh')).toBe(false)
+    expect(isValidBranchId('a'.repeat(65))).toBe(false)
+  })
+
+  it('reads branch settings, hidden when the gateway has none', () => {
+    expect(branchSettingsFrom({ branches: { 'zalo/x.a': 'B1' } })).toEqual({ available: true, branches: { 'zalo/x.a': 'B1' } })
+    expect(branchSettingsFrom({})).toEqual({ available: true, branches: {} })
+    expect(noBranchSettings().available).toBe(false)
   })
 })

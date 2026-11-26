@@ -122,3 +122,26 @@ export function saveBlob (blob, filename, doc = document) {
   a.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+// Branch codes (gateway /gw/settings/branches): one per "<channel>/<account>", the brandId of the
+// Vetgo app. A gateway without the route (404) or any other failure hides the field.
+export const BRANCH_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
+
+export function branchKey (channel, account) {
+  return `${channel}/${account}`
+}
+
+// Empty means "no branch" (remove); otherwise the code must match the gateway's pattern.
+export function isValidBranchId (value) {
+  const v = (value || '').trim()
+  return v === '' || BRANCH_ID_PATTERN.test(v)
+}
+
+export function branchSettingsFrom (data) {
+  const branches = data && typeof data.branches === 'object' && data.branches ? data.branches : {}
+  return { available: true, branches: { ...branches } }
+}
+
+export function noBranchSettings () {
+  return { available: false, branches: {} }
+}

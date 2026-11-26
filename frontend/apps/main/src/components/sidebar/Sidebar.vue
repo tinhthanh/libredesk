@@ -501,7 +501,8 @@ const viewToDelete = ref(null)
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
-              <SidebarMenuItem>
+              <!-- omnichannel: hidden for roles without it (branch agents), the list would answer 403 -->
+              <SidebarMenuItem v-if="userStore.can(permissions.CONVERSATIONS_READ_UNASSIGNED)">
                 <SidebarMenuButton :isActive="isActiveParent('/inboxes/unassigned')" @click="navigateToInbox('unassigned')">
                     <CircleDashed />
                     <span>
