@@ -369,10 +369,44 @@ export function isActivityText(text: string | null | undefined): boolean {
 // Ghi chú của gateway mở đầu bằng một trong các emoji này (eventTitles, callNote, ghi chú chủ tài khoản).
 const NOTE_START = /^(📞|↩️|✏️|💬|👥|🤝|ℹ️|⚠️|👤)/u
 
-// lastMessageByStaff: tin cuối của hội thoại là tin nhân viên viết. Libredesk tính cả ghi chú của gateway (cuộc
-// gọi, thu hồi, chủ tài khoản trả lời...) và tin hoạt động là của agent. Có dấu `omni_event` là ghi chú của gateway;
-// không dấu thì chỉ đoán theo emoji với tin trước OMNI_EVENT_SINCE (khi chưa có dấu) hay server cũ không có trường.
+export interface ListPreviewSource {
+  /** Nội dung của tin hiện ở dòng xem trước (HTML hay chữ, như Libredesk lưu). */
+  text: string
+  /** Thời điểm của tin đó. */
+  at: string
+  /** 'agent' | 'contact' | ''. */
+  sender: string
+  /** Lấy từ `last_interaction` vì tin cuối là tin hoạt động. */
+  fromInteraction: boolean
+}
+
+// listPreviewSource: tin hiện ở dòng xem trước của danh sách hội thoại. Libredesk ghi cả tin hoạt động vào
+// `last_message` ("System marked the conversation as Resolved" khi đóng, "System added tag …" khi gateway gắn tag
+// sau tin đầu), nên nhiều hội thoại xem trước là dòng hệ thống. Khi đó dùng `last_interaction` (tin thật cuối, Libredesk
+// bỏ qua tin hoạt động và tin riêng tư), kèm thời điểm và người gửi của nó. Tin cuối là ghi chú (vd. chủ tài khoản trả
+// lời) thì giữ `last_message`: ghi chú không có trong `last_interaction`. Không có `last_interaction` (hội thoại chỉ có
+// hoạt động, server cũ) thì giữ `last_message`.
+export function listPreviewSource(item: ConversationListItemLike | null | undefined): ListPreviewSource {
+  const text = item?.last_message || ''
+  const interaction = item?.last_interaction || ''
+  if (isActivityText(text) && interaction.trim()) {
+    return {
+      text: interaction,
+      at: item?.last_interaction_at || item?.last_message_at || '',
+      sender: item?.last_interaction_sender || '',
+      fromInteraction: true
+    }
+  }
+  return { text, at: item?.last_message_at || '', sender: item?.last_message_sender || '', fromInteraction: false }
+}
+
+// lastMessageByStaff: tin ở dòng xem trước (listPreviewSource) là tin nhân viên viết. Libredesk tính cả ghi chú của
+// gateway (cuộc gọi, thu hồi, chủ tài khoản trả lời...) và tin hoạt động là của agent. Có dấu `omni_event` là ghi chú
+// của gateway; không dấu thì chỉ đoán theo emoji với tin trước OMNI_EVENT_SINCE (khi chưa có dấu) hay server cũ không có
+// trường. Lấy từ `last_interaction` thì không có ghi chú nào: 'agent' là tin nhân viên trả lời.
 export function lastMessageByStaff(item: ConversationListItemLike | null | undefined): boolean {
+  const source = listPreviewSource(item)
+  if (source.fromInteraction) return source.sender === 'agent'
   if (item?.last_message_sender !== 'agent') return false
   const text = item.last_message || ''
   if (isActivityText(text)) return false

@@ -75,7 +75,7 @@
                   </Tooltip>
                   <span
                     class="text-xs text-muted-foreground whitespace-nowrap tabular-nums"
-                    v-if="conversation.last_message_at"
+                    v-if="previewSource.at"
                   >
                     {{ relativeLastMessageTime }}
                   </span>
@@ -146,7 +146,7 @@
                   <Reply
                     class="text-success inline-block align-text-bottom mr-0.5"
                     :size="14"
-                    v-if="conversation.last_message_sender === 'agent'"
+                    v-if="previewSource.sender === 'agent'"
                   />{{ trimmedLastMessage }}
                 </template>
               </p>
@@ -225,6 +225,7 @@ import { useBulkActionPermissions } from '@/composables/useBulkActionPermissions
 import { useI18n } from 'vue-i18n'
 import {
   lastMessageByStaff,
+  listPreviewSource,
   omniListPreview,
   ownerPreview,
   quotePreview
@@ -281,8 +282,13 @@ onUnmounted(() => {
   if (timer) clearInterval(timer)
 })
 
+// The message the preview shows: Libredesk also writes activity lines ("System marked the
+// conversation as Resolved", "System added tag …") into last_message; then the last real
+// message (last_interaction), with its own time and sender (omni-core listPreviewSource).
+const previewSource = computed(() => listPreviewSource(props.conversation))
+
 const trimmedLastMessage = computed(() => {
-  const message = quotePreview(props.conversation.last_message)
+  const message = quotePreview(previewSource.value.text)
   return message.length > 120 ? message.slice(0, 120) + '...' : message
 })
 
@@ -301,8 +307,8 @@ const omniPreviewText = computed(() => {
 const omniByStaff = computed(() => lastMessageByStaff(props.conversation))
 
 const relativeLastMessageTime = computed(() => {
-  return props.conversation.last_message_at
-    ? getRelativeTime(props.conversation.last_message_at, now.value)
+  return previewSource.value.at
+    ? getRelativeTime(previewSource.value.at, now.value)
     : ''
 })
 
