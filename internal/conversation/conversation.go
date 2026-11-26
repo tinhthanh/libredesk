@@ -843,6 +843,16 @@ func (c *Manager) afterUserAssignedHooks(uuid string, assigneeID int, actor umod
 
 // UpdateConversationTeamAssignee sets the assignee of a conversation to a specific team and sets the assigned user id to NULL.
 func (c *Manager) UpdateConversationTeamAssignee(uuid string, teamID int, actor umodels.User) error {
+	return c.updateConversationTeamAssignee(uuid, teamID, actor, false)
+}
+
+// UpdateConversationTeamAssigneeKeepUser sets the team of a conversation like UpdateConversationTeamAssignee but keeps
+// the assigned user (omi: the gateway sets the branch team automatically and must not drop the agent).
+func (c *Manager) UpdateConversationTeamAssigneeKeepUser(uuid string, teamID int, actor umodels.User) error {
+	return c.updateConversationTeamAssignee(uuid, teamID, actor, true)
+}
+
+func (c *Manager) updateConversationTeamAssignee(uuid string, teamID int, actor umodels.User, keepUser bool) error {
 	conversation, err := c.GetConversation(0, uuid, "")
 	if err != nil {
 		return err
@@ -861,9 +871,11 @@ func (c *Manager) UpdateConversationTeamAssignee(uuid string, teamID int, actor 
 
 	// Team changed?
 	if previousAssignedTeamID != teamID {
-		// Remove assigned user if team has changed.
-		if err := c.RemoveConversationAssignee(uuid, models.AssigneeTypeUser, actor); err != nil {
-			c.lo.Error("error removing conversation assignee after team change", "uuid", uuid, "error", err)
+		// Remove assigned user if team has changed, unless the caller asked to keep it.
+		if !keepUser {
+			if err := c.RemoveConversationAssignee(uuid, models.AssigneeTypeUser, actor); err != nil {
+				c.lo.Error("error removing conversation assignee after team change", "uuid", uuid, "error", err)
+			}
 		}
 
 		updatedConversation, err := c.GetConversation(0, uuid, "")
