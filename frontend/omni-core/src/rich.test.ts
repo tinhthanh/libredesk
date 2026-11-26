@@ -7,6 +7,7 @@ import {
   isActivityText,
   isAttachmentLabelOnly,
   lastMessageByStaff,
+  listPreviewSource,
   previewParts,
   richCard,
   videoDuration
@@ -213,5 +214,32 @@ describe('friendRequestState', () => {
   it('ignores staff notes written after the marker date once markers are seen', () => {
     const staff = note('<p>Đã đồng ý lời mời kết bạn chưa?</p>', { created_at: '2026-11-26T03:00:00Z' })
     expect(friendRequestState([request, staff], request, { markersSeen: true })).toBe('open')
+  })
+})
+
+describe('listPreviewSource', () => {
+  const resolved = 'System  marked the conversation as Resolved'
+  it('shows the last real message instead of a Libredesk activity line', () => {
+    const item = {
+      last_message: resolved,
+      last_message_at: '2026-11-26T03:00:00Z',
+      last_message_sender: 'agent',
+      last_interaction: '<p>dạ em cảm ơn</p>',
+      last_interaction_at: '2026-11-26T02:55:00Z',
+      last_interaction_sender: 'contact'
+    }
+    expect(listPreviewSource(item)).toEqual({ text: '<p>dạ em cảm ơn</p>', at: '2026-11-26T02:55:00Z', sender: 'contact', fromInteraction: true })
+    expect(lastMessageByStaff(item)).toBe(false)
+    expect(lastMessageByStaff({ ...item, last_interaction_sender: 'agent' })).toBe(true)
+    // "System added tag …" after the gateway's first message, too.
+    expect(listPreviewSource({ ...item, last_message: 'System added tag SMS vetgo-test.test-q7' }).fromInteraction).toBe(true)
+  })
+  it('keeps last_message for real messages, owner notes, and when there is no interaction', () => {
+    const owner = { last_message: '👤 Chủ tài khoản trả lời trực tiếp (x). ok', last_message_sender: 'agent', last_interaction: 'chào', last_interaction_sender: 'contact' }
+    expect(listPreviewSource(owner).text).toBe(owner.last_message)
+    expect(listPreviewSource({ last_message: 'hi', last_message_at: 't', last_message_sender: 'contact' })).toEqual({ text: 'hi', at: 't', sender: 'contact', fromInteraction: false })
+    expect(listPreviewSource({ last_message: resolved, last_interaction: '  ' }).text).toBe(resolved)
+    expect(listPreviewSource({ last_message: resolved }).fromInteraction).toBe(false)
+    expect(listPreviewSource(null)).toEqual({ text: '', at: '', sender: '', fromInteraction: false })
   })
 })

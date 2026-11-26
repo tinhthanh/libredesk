@@ -3,6 +3,7 @@ import {
   eventNote,
   friendRequestState,
   isOmnichannelInbox,
+  listPreviewSource,
   omniChannel,
   previewParts,
   quoteTarget as coreQuoteTarget,
@@ -79,7 +80,8 @@ const GROUP_SENDER = /^\[([^\]]+)\]:\s*/
 
 export function omniListPreview(conversation) {
   if (!isOmnichannelInbox(conversation)) return null
-  const text = conversation?.last_message || ''
+  // Not a Libredesk activity line ("System marked …"): the last real message instead.
+  const text = listPreviewSource(conversation).text
   const sender = GROUP_SENDER.exec(text)
   const parts = previewParts(sender ? text.slice(sender[0].length) : text)
   return { sender: sender?.[1] || '', kind: parts.kind, innerKind: parts.innerKind || null, text: parts.text }
@@ -88,7 +90,7 @@ export function omniListPreview(conversation) {
 // lastMessageByStaff (omni-core): the last message is a reply a staff member
 // wrote, not a gateway note or a Libredesk activity line, which Libredesk also
 // counts as the agent's.
-export { lastMessageByStaff } from '@omni-core'
+export { lastMessageByStaff, listPreviewSource } from '@omni-core'
 
 // canAcceptFriend: a customer's Zalo friend request card (omni-core richCard
 // kind 'friend') in a Zalo 1-1 conversation can be accepted from the inbox

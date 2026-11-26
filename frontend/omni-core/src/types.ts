@@ -48,6 +48,11 @@ export interface ConversationListItemLike {
   last_message_sender?: string | null
   /** Dấu `meta.omni_event` của tin cuối (libredesk #21); không có trường này ở server cũ. */
   last_message_omni_event?: string | null
+  /** Tin thật cuối cùng: Libredesk bỏ qua tin hoạt động và tin riêng tư (ghi chú). */
+  last_interaction?: string | null
+  last_interaction_at?: string | null
+  /** 'agent' | 'contact'. */
+  last_interaction_sender?: string | null
 }
 
 // --- Tài khoản kênh (gateway GET /gw/accounts) ---

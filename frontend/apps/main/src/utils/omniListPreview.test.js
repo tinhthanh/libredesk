@@ -57,3 +57,21 @@ describe('conversation list preview for gateway inboxes', () => {
     for (const k of kinds) expect(OMNI_PREVIEW_ICONS[k], k).toBeTruthy()
   })
 })
+
+describe('list preview after a Libredesk activity line', () => {
+  it('shows the last real message, not "System marked the conversation as Resolved"', () => {
+    const c = {
+      inbox_name: 'Zalo - acc2',
+      last_message: 'System  marked the conversation as Resolved',
+      last_message_sender: 'agent',
+      last_interaction: '[Lan]: 🖼️ Ảnh',
+      last_interaction_sender: 'contact'
+    }
+    expect(omniListPreview(c)).toEqual({ sender: 'Lan', kind: 'image', innerKind: null, text: 'Ảnh' })
+    expect(lastMessageByStaff(c)).toBe(false)
+    expect(lastMessageByStaff({ ...c, last_interaction: 'dạ vâng', last_interaction_sender: 'agent' })).toBe(true)
+    // Nothing real yet: the activity line stays.
+    expect(omniListPreview({ ...c, last_interaction: '' }).text).toContain('marked the conversation')
+  })
+})
+
