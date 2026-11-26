@@ -74,4 +74,3 @@ describe('list preview after a Libredesk activity line', () => {
     expect(omniListPreview({ ...c, last_interaction: '' }).text).toContain('marked the conversation')
   })
 })
-
