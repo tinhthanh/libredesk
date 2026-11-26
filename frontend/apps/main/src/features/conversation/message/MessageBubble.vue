@@ -144,8 +144,10 @@
                 <OmniRichCard
                   v-if="rich"
                   :card="rich"
+                  :friend-action="friendAction"
                   class="mb-1"
                   :class="{ 'mb-3': message.attachments.length > 0 }"
+                  @accept-friend="acceptFriend"
                 />
                 <div
                   v-else-if="message.content_type === 'text'"
@@ -459,6 +461,7 @@ import {
   groupSender,
   isOmnichannelInbox,
   isStickerOnly,
+  canAcceptFriend,
   nextReaction,
   omniRichCard,
   ownerReply,
@@ -629,6 +632,25 @@ const replyLabel = computed(() => {
 
 // omnichannel: a structured message (link, contact card, poll, location...) drawn as a card
 const rich = computed(() => omniRichCard(props.message, convStore.current))
+
+// omnichannel: accept a customer's Zalo friend request (Zalo refuses calls
+// between strangers). The gateway adds a note naming the agent.
+const friendState = ref('')
+const friendAction = computed(() =>
+  canAcceptFriend(rich.value, props.message, convStore.current) ? friendState.value || 'accept' : ''
+)
+const acceptFriend = async () => {
+  if (friendState.value) return
+  friendState.value = 'busy'
+  try {
+    await api.acceptChannelFriend(convStore.current?.uuid)
+    friendState.value = 'accepted'
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { description: t('conversation.omni.friend.accepted') })
+  } catch (error) {
+    friendState.value = ''
+    emitter.emit(EMITTER_EVENTS.SHOW_TOAST, { variant: 'destructive', description: errorMessage(error) })
+  }
+}
 
 // omnichannel: owner reply note, its long heading turned into a chip
 const owner = computed(() =>

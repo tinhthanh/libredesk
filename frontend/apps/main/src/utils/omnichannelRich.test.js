@@ -3,7 +3,7 @@ import { createSSRApp, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { createI18n } from 'vue-i18n'
 import vi from '../../../../../i18n/vi-VN.json'
-import { hasOmniMarkers, omniEventNote, omniRichCard, richActionKey } from './omnichannel.js'
+import { canAcceptFriend, hasOmniMarkers, omniEventNote, omniRichCard, richActionKey } from './omnichannel.js'
 import OmniEventNote from '../features/conversation/message/OmniEventNote.vue'
 import OmniRichCard from '../features/conversation/message/OmniRichCard.vue'
 import { TooltipProvider } from '@shared-ui/components/ui/tooltip'
@@ -57,6 +57,19 @@ const render = async (component, props) => {
   return renderToString(app)
 }
 
+describe('accepting a Zalo friend request', () => {
+  const request = incoming('🤝 Lời mời kết bạn «Xin chào»')
+  it('only offers it on a customer request in a Zalo 1-1 conversation', () => {
+    const card = omniRichCard(request, zalo)
+    expect(card?.kind).toBe('friend')
+    expect(canAcceptFriend(card, request, zalo)).toBe(true)
+    expect(canAcceptFriend(card, request, { inbox_name: 'Facebook - acc2' })).toBe(false)
+    expect(canAcceptFriend(card, { ...request, type: 'outgoing' }, zalo)).toBe(false)
+    expect(canAcceptFriend(omniRichCard(incoming('🔗 a<br>https://a.b'), zalo), request, zalo)).toBe(false)
+    expect(canAcceptFriend(null, request, zalo)).toBe(false)
+  })
+})
+
 describe('omnichannel card components', () => {
   it('draws a rich card with its label, lines and a safe link', async () => {
     const card = omniRichCard(incoming('<p>📍 Vị trí<br>12 Nguyễn Huệ<br>https://www.google.com/maps?q=1,2</p>'), zalo)
@@ -84,6 +97,19 @@ describe('omnichannel card components', () => {
     expect(voteHtml).not.toContain('<li')
     const unsafe = await render(OmniRichCard, { card: { ...poll, url: 'javascript:alert(1)' } })
     expect(unsafe).not.toContain('javascript:')
+  })
+
+  it('shows the accept button only when asked, disabled once accepted', async () => {
+    const card = omniRichCard(incoming('🤝 Lời mời kết bạn «Xin chào»'), zalo)
+    expect(await render(OmniRichCard, { card })).not.toContain('data-omni-friend-accept')
+    const offer = await render(OmniRichCard, { card, friendAction: 'accept' })
+    expect(offer).toContain('data-omni-friend-accept')
+    expect(offer).toContain('Đồng ý kết bạn')
+    const disabledAttr = /<button[^>]*\sdisabled(="")?[\s>]/
+    expect(offer).not.toMatch(disabledAttr)
+    const done = await render(OmniRichCard, { card, friendAction: 'accepted' })
+    expect(done).toContain('Đã đồng ý kết bạn')
+    expect(done).toMatch(disabledAttr)
   })
 
   it('draws an event note with its title, sender and body', async () => {
