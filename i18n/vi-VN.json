@@ -1773,7 +1773,7 @@
   "admin.channelAccounts.videoCallsOff": "Đã tắt gọi video cho {name}",
   "conversation.call.end.server_restart": "Bị ngắt do dịch vụ gọi điện khởi động lại",
   "conversation.call.cameraOffCard": "Camera đang tắt",
-  "admin.channelAccounts.smsHint": "Mỗi chi nhánh một số điện thoại. Đặt tên chi nhánh, tạo mã liên kết rồi nhập địa chỉ và mã vào Vetgo Phone Desktop ở chi nhánh (máy đó phải vào được Tailscale của máy chủ).",
+  "admin.channelAccounts.smsHint": "Mỗi chi nhánh một số điện thoại. Đặt tên chi nhánh rồi tải bộ cài cho chi nhánh đó: lễ tân giải nén, chạy Setup là máy tự liên kết, không nhập gì. Máy chủ chưa có bộ cài thì tạo mã liên kết rồi nhập địa chỉ và mã vào Vetgo Phone Desktop ở chi nhánh (máy chủ dùng Tailscale thì máy chi nhánh phải vào được Tailscale đó).",
   "admin.channelAccounts.smsCreateLink": "Tạo mã liên kết",
   "admin.channelAccounts.smsLinkReady": "Nhập hai giá trị dưới đây vào Vetgo Phone Desktop ở chi nhánh (Cài đặt → Libredesk).",
   "admin.channelAccounts.smsLinkUrl": "Địa chỉ máy chủ",
