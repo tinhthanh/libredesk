@@ -15,7 +15,7 @@ Libredesk nên hai bên lệch dần.
 |---|---|
 | `src/channel.ts` | Kênh và tài khoản suy từ tên inbox gateway (`omniChannel`, `inboxAccount`, `accountListed`), thu hồi, cảm xúc |
 | `src/message.ts` | Tin nhóm `[Người gửi]: `, ghi chú chủ tài khoản, sticker, trả lời trích dẫn (`quoteHTML`, `replyQuote`, `customerQuote`) |
-| `src/rich.ts` | Đọc tin để vẽ: loại dòng xem trước (`previewParts`), ghi chú sự kiện của gateway (`eventNote`, theo dấu `meta.omni_event`), tin có cấu trúc (`richCard`: link, danh thiếp, bình chọn, vị trí, cuộc gọi, video lớn...), nhãn tệp thừa. Trả `kind`; icon, chữ nút do giao diện chọn |
+| `src/rich.ts` | Đọc tin để vẽ: loại dòng xem trước (`previewParts`), ghi chú sự kiện của gateway (`eventNote`, theo dấu `meta.omni_event`), tin có cấu trúc (`richCard`: link, danh thiếp, bình chọn, vị trí, cuộc gọi, video lớn...), lời mời kết bạn Zalo còn đồng ý được không (`friendRequestState`), nhãn tệp thừa. Trả `kind`; icon, chữ nút do giao diện chọn |
 | `src/accounts.ts` | Tài khoản kênh: trạng thái, lý do, lịch sử kết nối, Zalo OA, Fanpage Web, canary, bộ cài SMS |
 | `src/calls.ts` | Cuộc gọi Zalo, Fanpage Web, điện thoại chi nhánh: mã trạng thái, thời lượng, ring_id, camera của khách, upsample PCM |
 | `src/early-updates.ts` | Giữ cập nhật tin tới trước khi tin có trong danh sách |
