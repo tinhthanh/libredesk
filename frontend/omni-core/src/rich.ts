@@ -302,6 +302,48 @@ export function richCard(message: MessageLike): RichCard | null {
   return { kind, title: head, lines: rest, url, pollAction, options, missed }
 }
 
+// --- Lời mời kết bạn Zalo: còn đồng ý được không ---
+
+/**
+ * - `open`: còn đồng ý được (hiện nút).
+ * - `accepted`: đã là bạn (nhân viên đồng ý trong hộp thư, hay đồng ý trên điện thoại).
+ * - `closed`: lời mời không còn hiệu lực (thu hồi, từ chối, huỷ kết bạn, chặn, hay đã có lời mời mới hơn).
+ */
+export type FriendRequestState = 'open' | 'accepted' | 'closed'
+
+// Ghi chú sau thẻ lời mời cho biết đã kết bạn: gateway "🤝 Đã đồng ý lời mời kết bạn · <nhân viên>" (friend.go), thẻ
+// Zalo "🤝 X đã trở thành bạn bè", tin hệ thống Zalo "ℹ️ Thông báo" "Bạn vừa kết bạn với …".
+const FRIEND_ACCEPTED = /Đã đồng ý lời mời kết bạn|đã trở thành bạn bè|vừa kết bạn với/i
+// zalo-bot friendEventInfo (zca-js deploy/content.mjs): thu hồi, từ chối, huỷ kết bạn, chặn. "Chủ tài khoản đã gửi lời
+// mời kết bạn" và "đã bỏ chặn" không đổi trạng thái của lời mời.
+const FRIEND_CLOSED = /Lời mời kết bạn (đã bị thu hồi|bị từ chối)|Đã (huỷ|hủy) kết bạn|Chủ tài khoản đã chặn/i
+
+// friendRequestState: lời mời kết bạn `request` (thẻ richCard kind 'friend' của khách) còn đồng ý được không, theo các
+// tin sau nó trong `messages` (thứ tự cũ trước, mới sau). Sự kiện cuối cùng quyết định; nút tạm của giao diện (đang gửi,
+// vừa đồng ý) do giao diện giữ. Không thấy `request` trong danh sách thì coi là còn mở.
+export function friendRequestState(
+  messages: readonly MessageLike[],
+  request: MessageLike,
+  options: EventNoteOptions = {}
+): FriendRequestState {
+  const index = messages.findIndex((m) => m === request || (!!request.uuid && m.uuid === request.uuid))
+  let state: FriendRequestState = 'open'
+  if (index < 0) return state
+  for (const m of messages.slice(index + 1)) {
+    if (!m.private) {
+      // Lời mời mới hơn của khách: thẻ cũ không còn là lời mời đang chờ.
+      if (m.type === 'incoming' && richCard(m)?.kind === 'friend') return 'closed'
+      continue
+    }
+    const note = eventNote(m, options)
+    if (!note || (note.kind !== 'friend' && note.kind !== 'system')) continue
+    const text = [note.title, ...note.body].join(' ')
+    if (FRIEND_ACCEPTED.test(text)) state = 'accepted'
+    else if (FRIEND_CLOSED.test(text)) state = 'closed'
+  }
+  return state
+}
+
 // --- Tin cuối trong danh sách hội thoại ---
 
 // Tin hoạt động Libredesk ghi sẵn bằng tiếng Anh (internal/conversation/message.go, getMessageActivityContent),

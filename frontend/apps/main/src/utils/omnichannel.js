@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import {
   eventNote,
+  friendRequestState,
   isOmnichannelInbox,
   omniChannel,
   previewParts,
@@ -100,4 +101,16 @@ export function canAcceptFriend(card, message, conversation) {
     !message?.private &&
     omniChannel(conversation) === 'zalo'
   )
+}
+
+// friendRequestAction: what the friend request card offers, read from the
+// conversation's messages (omni-core friendRequestState) so a reload keeps it:
+// 'accept' while the request is pending, 'accepted' once the agent or the
+// phone accepted it, '' when it is withdrawn, rejected, unfriended or replaced
+// by a newer request, or when the card is not a Zalo friend request.
+export function friendRequestAction(card, message, conversation, messages) {
+  if (!canAcceptFriend(card, message, conversation)) return ''
+  const list = messages || []
+  const state = friendRequestState(list, message, { markersSeen: hasOmniMarkers(list) })
+  return state === 'open' ? 'accept' : state === 'accepted' ? 'accepted' : ''
 }

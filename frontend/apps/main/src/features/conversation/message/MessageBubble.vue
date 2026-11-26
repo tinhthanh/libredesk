@@ -461,7 +461,7 @@ import {
   groupSender,
   isOmnichannelInbox,
   isStickerOnly,
-  canAcceptFriend,
+  friendRequestAction,
   nextReaction,
   omniRichCard,
   ownerReply,
@@ -635,10 +635,19 @@ const rich = computed(() => omniRichCard(props.message, convStore.current))
 
 // omnichannel: accept a customer's Zalo friend request (Zalo refuses calls
 // between strangers). The gateway adds a note naming the agent.
+// The card reads the later notes, so after a reload an accepted request shows
+// "accepted" and a withdrawn one no button; friendState covers the click until
+// the gateway note arrives.
 const friendState = ref('')
-const friendAction = computed(() =>
-  canAcceptFriend(rich.value, props.message, convStore.current) ? friendState.value || 'accept' : ''
-)
+const friendAction = computed(() => {
+  const action = friendRequestAction(
+    rich.value,
+    props.message,
+    convStore.current,
+    convStore.conversationMessages
+  )
+  return action && friendState.value ? friendState.value : action
+})
 const acceptFriend = async () => {
   if (friendState.value) return
   friendState.value = 'busy'

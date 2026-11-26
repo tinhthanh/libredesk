@@ -3,6 +3,7 @@ import {
   OMNI_EVENT_SINCE,
   contentLines,
   eventNote,
+  friendRequestState,
   isActivityText,
   isAttachmentLabelOnly,
   lastMessageByStaff,
@@ -172,5 +173,45 @@ describe('lastMessageByStaff', () => {
     expect(lastMessageByStaff(null)).toBe(false)
     expect(isActivityText('System  marked the conversation as Resolved')).toBe(true)
     expect(isActivityText('Đã thêm thẻ')).toBe(false)
+  })
+})
+
+describe('friendRequestState', () => {
+  const marked = (content: string, omni_event: string) =>
+    note(content, { created_at: '2026-11-26T03:00:00Z', meta: { omni_event } })
+  const request = incoming('🤝 Lời mời kết bạn<br>«Them lai»', { uuid: 'r1' })
+  const accepted = marked('<p><strong>🤝 Đã đồng ý lời mời kết bạn</strong> · System</p>', 'friend_event')
+  const phone = marked('<p><strong>ℹ️ Thông báo</strong></p><p>Bạn vừa kết bạn với Nguyen Van B</p>', 'system')
+  const card = marked('<p><strong>ℹ️ Thông báo</strong></p><p>🤝 Đoàn Duy Nhất đã trở thành bạn bè</p>', 'system')
+  const removed = marked('<p><strong>🤝 Bạn bè</strong></p><p>Đã huỷ kết bạn</p>', 'friend_event')
+  const ownerAsked = marked('<p><strong>🤝 Bạn bè</strong></p><p>Chủ tài khoản đã gửi lời mời kết bạn: «Them lai»</p>', 'friend_event')
+  const undone = marked('<p><strong>🤝 Bạn bè</strong></p><p>Lời mời kết bạn đã bị thu hồi</p>', 'friend_event')
+
+  it('stays open until a later event settles it', () => {
+    expect(friendRequestState([removed, request], request)).toBe('open')
+    expect(friendRequestState([request, incoming('chào')], request)).toBe('open')
+    expect(friendRequestState([request, ownerAsked], request)).toBe('open')
+    expect(friendRequestState([], request)).toBe('open')
+  })
+
+  it('is accepted after the gateway note, a phone acceptance or the Zalo card', () => {
+    expect(friendRequestState([request, accepted], request)).toBe('accepted')
+    expect(friendRequestState([request, phone], request)).toBe('accepted')
+    expect(friendRequestState([request, card], request)).toBe('accepted')
+    // Tìm theo uuid khi giao diện truyền bản sao của tin.
+    expect(friendRequestState([request, accepted], { ...request })).toBe('accepted')
+  })
+
+  it('is closed when withdrawn, unfriended or replaced by a newer request; the last event wins', () => {
+    expect(friendRequestState([request, undone], request)).toBe('closed')
+    expect(friendRequestState([request, accepted, removed], request)).toBe('closed')
+    const newer = incoming('🤝 Lời mời kết bạn<br>«Lần nữa»', { uuid: 'r2' })
+    expect(friendRequestState([request, removed, newer], request)).toBe('closed')
+    expect(friendRequestState([request, removed, newer], newer)).toBe('open')
+  })
+
+  it('ignores staff notes written after the marker date once markers are seen', () => {
+    const staff = note('<p>Đã đồng ý lời mời kết bạn chưa?</p>', { created_at: '2026-11-26T03:00:00Z' })
+    expect(friendRequestState([request, staff], request, { markersSeen: true })).toBe('open')
   })
 })

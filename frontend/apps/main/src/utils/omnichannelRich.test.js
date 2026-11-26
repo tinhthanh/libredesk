@@ -3,7 +3,7 @@ import { createSSRApp, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { createI18n } from 'vue-i18n'
 import vi from '../../../../../i18n/vi-VN.json'
-import { canAcceptFriend, hasOmniMarkers, omniEventNote, omniRichCard, richActionKey } from './omnichannel.js'
+import { canAcceptFriend, friendRequestAction, hasOmniMarkers, omniEventNote, omniRichCard, richActionKey } from './omnichannel.js'
 import OmniEventNote from '../features/conversation/message/OmniEventNote.vue'
 import OmniRichCard from '../features/conversation/message/OmniRichCard.vue'
 import { TooltipProvider } from '@shared-ui/components/ui/tooltip'
@@ -67,6 +67,23 @@ describe('accepting a Zalo friend request', () => {
     expect(canAcceptFriend(card, { ...request, type: 'outgoing' }, zalo)).toBe(false)
     expect(canAcceptFriend(omniRichCard(incoming('🔗 a<br>https://a.b'), zalo), request, zalo)).toBe(false)
     expect(canAcceptFriend(null, request, zalo)).toBe(false)
+  })
+
+  it('keeps the outcome after a reload from the notes that follow the card', () => {
+    const card = omniRichCard(request, zalo)
+    const accepted = note('<p><strong>🤝 Đã đồng ý lời mời kết bạn</strong> · Lan</p>', {
+      created_at: '2026-11-26T03:07:09Z',
+      meta: { omni_event: 'friend_event' }
+    })
+    const removed = note('<p><strong>🤝 Bạn bè</strong></p><p>Đã huỷ kết bạn</p>', {
+      created_at: '2026-11-26T03:08:00Z',
+      meta: { omni_event: 'friend_event' }
+    })
+    expect(friendRequestAction(card, request, zalo, [request])).toBe('accept')
+    expect(friendRequestAction(card, request, zalo, [request, accepted])).toBe('accepted')
+    expect(friendRequestAction(card, request, zalo, [request, accepted, removed])).toBe('')
+    expect(friendRequestAction(card, request, { inbox_name: 'Facebook - acc2' }, [request])).toBe('')
+    expect(friendRequestAction(card, request, zalo, undefined)).toBe('accept')
   })
 })
 
