@@ -1773,7 +1773,7 @@
   "admin.channelAccounts.videoCallsOff": "Video calls turned off for {name}",
   "conversation.call.end.server_restart": "Cut off because the call service restarted",
   "conversation.call.cameraOffCard": "Camera is off",
-  "admin.channelAccounts.smsHint": "One phone number per branch. Name the branch, create a link code, then enter the address and code in Vetgo Phone Desktop at the branch (that PC must be on the server’s Tailscale).",
+  "admin.channelAccounts.smsHint": "One phone number per branch. Name the branch, then download the installer for it: the branch unzips it and runs Setup, and the PC links itself with nothing to type. If the server has no installer, create a link code and enter the address and code in Vetgo Phone Desktop at the branch (on a Tailscale server, that PC must be on the same Tailscale).",
   "admin.channelAccounts.smsCreateLink": "Create link code",
   "admin.channelAccounts.smsLinkReady": "Enter both values below in Vetgo Phone Desktop at the branch (Settings → Libredesk).",
   "admin.channelAccounts.smsLinkUrl": "Server address",
