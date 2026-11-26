@@ -226,7 +226,8 @@ export function installerPath(name: string): string {
 // installerFilename: tên tệp từ Content-Disposition (ưu tiên filename* theo RFC 5987), bỏ mọi đường dẫn;
 // không có thì Vetgo-Phone-<chi nhánh>.zip.
 export function installerFilename(header: string | null | undefined, branch: string): string {
-  const fallback = `Vetgo-Phone-${branch}.zip`
+  // Gateway trả tên tệp; thiếu thì đặt như bộ cài một tệp (Desktop 0.1.23 trở lên).
+  const fallback = `Vetgo-Phone-${branch}-setup.exe`
   const value = String(header || '')
   let name = ''
   const star = value.match(/filename\*\s*=\s*([^;]+)/i)

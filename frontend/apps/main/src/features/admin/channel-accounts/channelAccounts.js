@@ -84,7 +84,7 @@ export function muteLabel (until, t, locale) {
   return t('admin.channelAlerts.mutedUntil', { at: formatShortTime(until * 1000, locale) })
 }
 
-// SMS: per-branch installer zip from the gateway.
+// SMS: per-branch installer from the gateway (one exe with the link, or a zip for old pins).
 export function installerUrl (name) {
   return installerPath(name)
 }

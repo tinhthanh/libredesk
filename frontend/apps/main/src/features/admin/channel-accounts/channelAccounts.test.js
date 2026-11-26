@@ -152,9 +152,9 @@ describe('channel accounts helpers', () => {
     expect(installerFilename("attachment; filename=\"x.zip\"; filename*=UTF-8''Vetgo%20Phone%20Qu%E1%BA%ADn%201.zip", 'q1'))
       .toBe('Vetgo Phone Quận 1.zip')
     expect(installerFilename('attachment; filename="..\\\\evil/../a b.zip"', 'q1')).toBe('a b.zip')
-    expect(installerFilename('attachment', 'q1')).toBe('Vetgo-Phone-q1.zip')
-    expect(installerFilename(null, 'shop.2')).toBe('Vetgo-Phone-shop.2.zip')
-    expect(installerFilename("attachment; filename*=UTF-8''%E0%A4%A", 'q1')).toBe('Vetgo-Phone-q1.zip')
+    expect(installerFilename('attachment', 'q1')).toBe('Vetgo-Phone-q1-setup.exe')
+    expect(installerFilename(null, 'shop.2')).toBe('Vetgo-Phone-shop.2-setup.exe')
+    expect(installerFilename("attachment; filename*=UTF-8''%E0%A4%A", 'q1')).toBe('Vetgo-Phone-q1-setup.exe')
     expect(installerUrl('a b')).toBe('/gw/accounts/sms/a%20b/installer')
   })
 
