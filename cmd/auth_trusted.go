@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -123,6 +124,66 @@ type trustedSessionReq struct {
 	Name             string `json:"name"`
 	OmiRole          string `json:"omi_role"`
 	AutoCreate       bool   `json:"auto_create"`
+	// BranchIDs: optional. Absent: teams untouched. null: every branch team. Array: those branches.
+	BranchIDs branchIDsField `json:"branch_ids"`
+}
+
+// branchIDPattern: a branch id of the Vetgo app (brandId), e.g. B1, branch_001.
+var branchIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+// maxBranchIDs bounds the array; a clinic has a handful of branches.
+const maxBranchIDs = 200
+
+// branchIDsField tells an absent branch_ids (Set false) from null (Set, All) and from an array.
+type branchIDsField struct {
+	Set bool
+	All bool
+	IDs []string
+}
+
+func (b *branchIDsField) UnmarshalJSON(data []byte) error {
+	b.Set = true
+	if strings.TrimSpace(string(data)) == "null" {
+		b.All, b.IDs = true, nil
+		return nil
+	}
+	var ids []string
+	if err := json.Unmarshal(data, &ids); err != nil {
+		return errors.New("branch_ids must be null or an array of strings")
+	}
+	if len(ids) > maxBranchIDs {
+		return errors.New("too many branch_ids")
+	}
+	seen := make(map[string]struct{}, len(ids))
+	b.IDs = make([]string, 0, len(ids))
+	for _, id := range ids {
+		if !branchIDPattern.MatchString(id) {
+			return errors.New("bad branch id")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		b.IDs = append(b.IDs, id)
+	}
+	return nil
+}
+
+// branchTeamSyncer: what syncing branch teams needs (team manager; a fake in tests).
+type branchTeamSyncer interface {
+	SyncBranchTeams(userID int, branchIDs []string, all bool) error
+}
+
+// syncBranchTeams applies branch_ids to the agent's teams. Returns whether teams were touched (the
+// caller then drops the agent cache). Absent branch_ids: nothing, as before the field existed.
+func syncBranchTeams(st branchTeamSyncer, userID int, b branchIDsField) (bool, error) {
+	if !b.Set {
+		return false, nil
+	}
+	if err := st.SyncBranchTeams(userID, b.IDs, b.All); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func decodeTrustedSessionReq(body []byte) (trustedSessionReq, error) {
@@ -306,6 +367,14 @@ func handleTrustedSession(r *fastglue.Request) error {
 		return sendTrustedErr(r, fasthttp.StatusForbidden, "agent_disabled", app.i18n.T("user.accountDisabled"))
 	}
 
+	// Branch teams before the session: a failed sync must not leave the agent with old branches.
+	if synced, err := syncBranchTeams(app.team, user.ID, req.BranchIDs); err != nil {
+		app.lo.Error("trusted-session: syncing branch teams", "user_id", user.ID, "error", err)
+		return sendErrorEnvelope(r, err)
+	} else if synced {
+		app.user.InvalidateAgentCache(user.ID)
+	}
+
 	// Same steps as a password sign-in, then the two cookies go into the body.
 	if err := app.auth.SaveSession(amodels.User{
 		ID:        user.ID,
@@ -335,7 +404,8 @@ func handleTrustedSession(r *fastglue.Request) error {
 	if err := app.activityLog.Login(user.ID, user.Email.String, r.RequestCtx.RemoteIP().String()); err != nil {
 		app.lo.Error("error creating login activity log", "error", err)
 	}
-	app.lo.Info("trusted-session opened", "user_id", user.ID, "sub", req.Sub, "created", created, "placeholder", req.EmailPlaceholder)
+	app.lo.Info("trusted-session opened", "user_id", user.ID, "sub", req.Sub, "created", created, "placeholder", req.EmailPlaceholder,
+		"branch_ids_set", req.BranchIDs.Set, "branch_all", req.BranchIDs.All, "branch_count", len(req.BranchIDs.IDs))
 
 	return r.SendEnvelope(map[string]any{
 		"session_cookie": sessionCookie,

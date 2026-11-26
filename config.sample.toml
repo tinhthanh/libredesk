@@ -226,6 +226,7 @@ trusted_ips = []
 # Create a missing agent on first sign-in (and only when the adapter asks for it).
 auto_create_agents = true
 # Role given to a created agent, by the omi_role claim. An existing agent keeps its roles.
+# Branch staff: agent = "Nhân viên chi nhánh" (created by the v2.8.1-omni.1 migration).
 [omi_api.role_map]
 admin = "Admin"
 agent = "Agent"

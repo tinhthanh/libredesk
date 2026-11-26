@@ -122,6 +122,24 @@
                       />
                       {{ t('admin.channelAccounts.videoCalls') }}
                     </label>
+                    <!-- omnichannel: branch code of the account (gateway settings "branches"; hidden on older gateways) -->
+                    <label
+                      v-if="branchSettings.available"
+                      class="flex items-center gap-2 text-xs text-muted-foreground"
+                      :title="t('admin.channelAccounts.branchHint')"
+                    >
+                      {{ t('admin.channelAccounts.branch') }}
+                      <Input
+                        :model-value="branchDraft(channel, account)"
+                        class="h-8 w-28 text-xs"
+                        placeholder="B1"
+                        autocomplete="off"
+                        :disabled="busy === 'branch/' + key(channel, account.name)"
+                        @update:model-value="(value) => (branchDrafts[key(channel, account.name)] = value)"
+                        @keydown.enter="$event.target.blur()"
+                        @blur="saveBranch(channel, account)"
+                      />
+                    </label>
                     <Badge :variant="accountStatus(account).variant">
                       {{ t(accountStatus(account).key) }}
                     </Badge>
@@ -480,6 +498,10 @@ import { EMITTER_EVENTS } from '../../../constants/emitterEvents.js'
 import {
   accountReason,
   accountStatus,
+  branchKey,
+  branchSettingsFrom,
+  isValidBranchId,
+  noBranchSettings,
   connectedAt,
   displayName,
   errorMessage,
@@ -555,6 +577,60 @@ async function setCalls (name, on, video = false, channel = '') {
   } catch (error) {
     toast(errorMessage(error), 'destructive')
   } finally {
+    busy.value = ''
+  }
+}
+
+// Mã chi nhánh của từng tài khoản (gateway /gw/settings/branches). Gateway cũ trả 404: ẩn ô.
+const branchSettings = ref(noBranchSettings())
+const branchDrafts = ref({}) // key -> giá trị đang gõ, chưa lưu
+
+async function loadBranchSettings () {
+  try {
+    const { data } = await api.getBranchSettings()
+    branchSettings.value = branchSettingsFrom(data)
+  } catch {
+    branchSettings.value = noBranchSettings()
+  }
+}
+
+function branchDraft (channel, account) {
+  const draft = branchDrafts.value[key(channel, account.name)]
+  return draft !== undefined ? draft : branchSettings.value.branches[branchKey(channel.channel, account.name)] || ''
+}
+
+async function saveBranch (channel, account) {
+  const k = key(channel, account.name)
+  const draft = branchDrafts.value[k]
+  if (draft === undefined) return
+  const branch = draft.trim()
+  const current = branchSettings.value.branches[branchKey(channel.channel, account.name)] || ''
+  if (branch === current) {
+    delete branchDrafts.value[k]
+    return
+  }
+  if (!isValidBranchId(branch)) {
+    toast(t('admin.channelAccounts.branchInvalid'), 'destructive')
+    delete branchDrafts.value[k]
+    return
+  }
+  busy.value = 'branch/' + k
+  try {
+    const { data } = await api.setAccountBranch(channel.channel, account.name, branch)
+    if (data && typeof data.branches === 'object') {
+      branchSettings.value = branchSettingsFrom(data)
+    } else {
+      const branches = { ...branchSettings.value.branches }
+      if (branch) branches[branchKey(channel.channel, account.name)] = branch
+      else delete branches[branchKey(channel.channel, account.name)]
+      branchSettings.value = { available: true, branches }
+    }
+    const name = displayName(account)
+    toast(branch ? t('admin.channelAccounts.branchSaved', { name, branch }) : t('admin.channelAccounts.branchRemoved', { name }))
+  } catch (error) {
+    toast(errorMessage(error), 'destructive')
+  } finally {
+    delete branchDrafts.value[k]
     busy.value = ''
   }
 }
@@ -886,6 +962,7 @@ async function confirmRemove () {
 onMounted(() => {
   loadAccounts()
   loadCallSettings()
+  loadBranchSettings()
   listTimer = setInterval(loadAccounts, LIST_REFRESH_MS)
 })
 

@@ -43,3 +43,28 @@ DELETE FROM teams where id = $1;
 
 -- name: user-belongs-to-team
 SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2);
+-- name: ensure-teams
+-- Omnichannel (omi): creates the named teams that are missing, with manual assignment and the app timezone.
+INSERT INTO teams (name, conversation_assignment_type, timezone)
+SELECT n, 'Manual', COALESCE((SELECT value #>> '{}' FROM settings WHERE key = 'app.timezone'), 'UTC')
+FROM unnest($1::TEXT[]) AS n
+ON CONFLICT (name) DO NOTHING;
+
+-- name: sync-branch-teams
+-- Omnichannel (omi): puts user $1 in the branch teams (name branch:...) named in $2, or in every branch
+-- team when $3 is true, and takes them out of the other branch teams. Other teams are not touched.
+WITH wanted AS (
+    SELECT id FROM teams WHERE name LIKE 'branch:%' AND ($3 OR name = ANY($2))
+),
+delete_old AS (
+    DELETE FROM team_members
+    WHERE user_id = $1
+    AND team_id IN (SELECT id FROM teams WHERE name LIKE 'branch:%')
+    AND team_id NOT IN (SELECT id FROM wanted)
+),
+insert_new AS (
+    INSERT INTO team_members (user_id, team_id)
+    SELECT $1, id FROM wanted
+    ON CONFLICT DO NOTHING
+)
+SELECT 1;

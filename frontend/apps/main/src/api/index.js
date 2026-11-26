@@ -340,6 +340,9 @@ const getChannelCallAccounts = () => http.get('/gw/calls/accounts')
 const getCallSettings = () => http.get('/gw/settings/calls')
 const setCallSetting = (account, enabled, video = false, channel = '') =>
   http.put('/gw/settings/calls', { account, enabled, video, channel })
+// Admin: branch code of each channel account (gateway settings.json "branches"; 404 on older gateways).
+const getBranchSettings = () => http.get('/gw/settings/branches')
+const setAccountBranch = (channel, account, branch) => http.put('/gw/settings/branches', { channel, account, branch })
 // Branch phones (SMS channel, vglink): dial a customer, and who is calling right now (gateway phonecalls.go).
 const dialBranchPhone = (conversationUUID) => http.post(`/gw/conversations/${encodeURIComponent(conversationUUID)}/dial`, {})
 const getRingingCalls = () => http.get('/gw/calls/ringing')
@@ -717,6 +720,8 @@ export default {
   getChannelCallAccounts,
   getCallSettings,
   setCallSetting,
+  getBranchSettings,
+  setAccountBranch,
   dialBranchPhone,
   getRingingCalls,
   branchCallAction,
