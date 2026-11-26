@@ -619,8 +619,11 @@ func (c *Manager) GetTeamUnassignedConversationsList(viewingUserID, teamID int, 
 }
 
 // GetMentionedConversationsList retrieves conversations where the user is mentioned (directly or via team).
-func (c *Manager) GetMentionedConversationsList(viewingUserID int, order, orderBy, filters string, page, pageSize int) ([]models.ConversationListItem, error) {
-	return c.GetConversations(viewingUserID, 0, []int{}, []string{models.MentionedConversations}, order, orderBy, filters, page, pageSize)
+// omnichannel: only those the user can read; accessLists are the list types the user's permissions
+// allow (AllConversations for read_all), teamIDs their teams. No access list: nothing.
+func (c *Manager) GetMentionedConversationsList(viewingUserID int, teamIDs []int, accessLists []string, order, orderBy, filters string, page, pageSize int) ([]models.ConversationListItem, error) {
+	lists := append([]string{models.MentionedConversations}, accessLists...)
+	return c.GetConversations(viewingUserID, viewingUserID, teamIDs, lists, order, orderBy, filters, page, pageSize)
 }
 
 // InsertMentions inserts mentions for a message.
@@ -1864,6 +1867,8 @@ func (c *Manager) makeConversationsListQuery(viewingUserID, userID int, teamIDs 
 
 	// Prepare the conditions based on the list types.
 	conditions := []string{}
+	hasAll := false
+	mentionCondition := ""
 	for _, lt := range listTypes {
 		switch lt {
 		case models.AssignedConversations:
@@ -1872,6 +1877,11 @@ func (c *Manager) makeConversationsListQuery(viewingUserID, userID int, teamIDs 
 		case models.UnassignedConversations:
 			conditions = append(conditions, "conversations.assigned_user_id IS NULL AND conversations.assigned_team_id IS NULL")
 		case models.TeamUnassignedConversations:
+			// omnichannel: an agent in no team matches nothing (IN () is an SQL error).
+			if len(teamIDs) == 0 {
+				conditions = append(conditions, "FALSE")
+				continue
+			}
 			placeholders := make([]string, len(teamIDs))
 			for i := range teamIDs {
 				placeholders[i] = fmt.Sprintf("$%d", len(qArgs)+i+1)
@@ -1881,6 +1891,10 @@ func (c *Manager) makeConversationsListQuery(viewingUserID, userID int, teamIDs 
 				qArgs = append(qArgs, id)
 			}
 		case models.TeamAllConversations:
+			if len(teamIDs) == 0 {
+				conditions = append(conditions, "FALSE")
+				continue
+			}
 			placeholders := make([]string, len(teamIDs))
 			for i := range teamIDs {
 				placeholders[i] = fmt.Sprintf("$%d", len(qArgs)+i+1)
@@ -1891,9 +1905,11 @@ func (c *Manager) makeConversationsListQuery(viewingUserID, userID int, teamIDs 
 			}
 		case models.AllConversations:
 			// No conditions needed for all conversations.
+			hasAll = true
 		case models.MentionedConversations:
 			// Filter to only conversations where user is mentioned (directly or via team)
-			conditions = append(conditions, `conversations.id IN (
+			// omnichannel: a filter ANDed with the other list types, which say what the user may read.
+			mentionCondition = (`conversations.id IN (
 				SELECT cm.conversation_id
 				FROM conversation_mentions cm
 				WHERE cm.mentioned_user_id = $1
@@ -1911,6 +1927,18 @@ func (c *Manager) makeConversationsListQuery(viewingUserID, userID int, teamIDs 
 	var whereClause string
 	if len(conditions) > 0 {
 		whereClause = "AND (" + strings.Join(conditions, " OR ") + ")"
+	}
+	// omnichannel: mentioned conversations the user can read. The other list types are the access
+	// lists (AllConversations: no limit); none means nothing, never every mention.
+	if mentionCondition != "" {
+		whereClause = "AND " + mentionCondition
+		switch {
+		case hasAll:
+		case len(conditions) == 0:
+			whereClause += " AND FALSE"
+		default:
+			whereClause += " AND (" + strings.Join(conditions, " OR ") + ")"
+		}
 	}
 
 	baseQuery = fmt.Sprintf(baseQuery, whereClause)

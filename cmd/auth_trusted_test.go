@@ -252,3 +252,83 @@ func TestOmiRateAllowed(t *testing.T) {
 		t.Fatal("window must reset after a minute")
 	}
 }
+
+// fakeTeamSyncer ghi lại lần gọi SyncBranchTeams.
+type fakeTeamSyncer struct {
+	calls int
+	ids   []string
+	all   bool
+	err   error
+}
+
+func (f *fakeTeamSyncer) SyncBranchTeams(userID int, ids []string, all bool) error {
+	f.calls++
+	f.ids, f.all = ids, all
+	return f.err
+}
+
+func TestTrustedSessionBranchIDs(t *testing.T) {
+	const base = `{"sub":"1","email":"a@b.c","email_placeholder":false,"name":"A","omi_role":"agent","auto_create":true`
+
+	// Không có trường: không đụng team (như trước khi có branch_ids).
+	req, err := decodeTrustedSessionReq([]byte(base + `}`))
+	if err != nil || req.BranchIDs.Set {
+		t.Fatalf("absent: %+v %v", req.BranchIDs, err)
+	}
+	f := &fakeTeamSyncer{}
+	if synced, err := syncBranchTeams(f, 7, req.BranchIDs); err != nil || synced || f.calls != 0 {
+		t.Fatalf("absent must not touch teams: synced=%v calls=%d err=%v", synced, f.calls, err)
+	}
+
+	// null: mọi team chi nhánh.
+	req, err = decodeTrustedSessionReq([]byte(base + `,"branch_ids":null}`))
+	if err != nil || !req.BranchIDs.Set || !req.BranchIDs.All {
+		t.Fatalf("null: %+v %v", req.BranchIDs, err)
+	}
+	f = &fakeTeamSyncer{}
+	if synced, err := syncBranchTeams(f, 7, req.BranchIDs); err != nil || !synced || f.calls != 1 || !f.all {
+		t.Fatalf("null must sync every branch team: synced=%v %+v err=%v", synced, f, err)
+	}
+
+	// Mảng: đúng các chi nhánh đó, bỏ trùng; mảng rỗng chỉ còn branch:all.
+	req, err = decodeTrustedSessionReq([]byte(base + `,"branch_ids":["B1","branch_001","B1"]}`))
+	if err != nil || !req.BranchIDs.Set || req.BranchIDs.All || strings.Join(req.BranchIDs.IDs, ",") != "B1,branch_001" {
+		t.Fatalf("array: %+v %v", req.BranchIDs, err)
+	}
+	f = &fakeTeamSyncer{}
+	if synced, err := syncBranchTeams(f, 7, req.BranchIDs); err != nil || !synced || f.all || strings.Join(f.ids, ",") != "B1,branch_001" {
+		t.Fatalf("array sync: synced=%v %+v err=%v", synced, f, err)
+	}
+	req, err = decodeTrustedSessionReq([]byte(base + `,"branch_ids":[]}`))
+	if err != nil || !req.BranchIDs.Set || req.BranchIDs.All || len(req.BranchIDs.IDs) != 0 {
+		t.Fatalf("empty array: %+v %v", req.BranchIDs, err)
+	}
+
+	// Lỗi đồng bộ: trả lỗi để không mở phiên với team cũ.
+	f = &fakeTeamSyncer{err: errors.New("db down")}
+	if _, err := syncBranchTeams(f, 7, req.BranchIDs); err == nil {
+		t.Fatal("sync error must be returned")
+	}
+
+	// Mã sai mẫu hay sai kiểu: 400 (decode lỗi).
+	tooMany := make([]string, maxBranchIDs+1)
+	for i := range tooMany {
+		tooMany[i] = `"B` + strings.Repeat("1", i%60+1) + `"`
+	}
+	for name, field := range map[string]string{
+		"space":       `["B 1"]`,
+		"colon":       `["all:x"]`,
+		"empty":       `[""]`,
+		"too long":    `["` + strings.Repeat("a", 65) + `"]`,
+		"unicode":     `["chi_nhánh"]`,
+		"number":      `[1]`,
+		"string":      `"B1"`,
+		"object":      `{"B1":true}`,
+		"null inside": `[null]`,
+		"too many":    `[` + strings.Join(tooMany, ",") + `]`,
+	} {
+		if _, err := decodeTrustedSessionReq([]byte(base + `,"branch_ids":` + field + `}`)); err == nil {
+			t.Errorf("%s: want error", name)
+		}
+	}
+}

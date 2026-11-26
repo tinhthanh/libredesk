@@ -61,6 +61,33 @@ type createConversationRequest struct {
 	CustomAttributes map[string]any `json:"custom_attributes"`
 }
 
+// conversationAccessLists returns the conversation list types a user's permissions allow, which
+// together are every conversation they can read: only AllConversations with read_all.
+func conversationAccessLists(permissions []string) []string {
+	lists := []string{}
+	hasTeamAll := slices.Contains(permissions, authzModels.PermConversationsReadTeamAll)
+	for _, perm := range permissions {
+		if perm == authzModels.PermConversationsReadAll {
+			// No further lists required as user has access to all conversations.
+			return []string{cmodels.AllConversations}
+		}
+		if perm == authzModels.PermConversationsReadUnassigned {
+			lists = append(lists, cmodels.UnassignedConversations)
+		}
+		if perm == authzModels.PermConversationsReadAssigned {
+			lists = append(lists, cmodels.AssignedConversations)
+		}
+		// Skip TeamUnassignedConversations if user has TeamAllConversations (superset).
+		if perm == authzModels.PermConversationsReadTeamInbox && !hasTeamAll {
+			lists = append(lists, cmodels.TeamUnassignedConversations)
+		}
+		if perm == authzModels.PermConversationsReadTeamAll {
+			lists = append(lists, cmodels.TeamAllConversations)
+		}
+	}
+	return lists
+}
+
 // handleGetAllConversations retrieves all conversations.
 func handleGetAllConversations(r *fastglue.Request) error {
 	var (
@@ -73,7 +100,22 @@ func handleGetAllConversations(r *fastglue.Request) error {
 	)
 	page, pageSize := getPagination(r)
 
-	conversations, err := app.conversation.GetAllConversationsList(user.ID, order, orderBy, filters, page, pageSize)
+	// omnichannel: without read_all, "All" is every conversation the user can read (e.g. a branch
+	// agent: their branch teams and their own), not a 403. read_all: unchanged.
+	agent, err := app.user.GetAgentCachedOrLoad(user.ID)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	lists := conversationAccessLists(agent.Permissions)
+	if len(lists) == 0 {
+		return r.SendErrorEnvelope(fasthttp.StatusForbidden, app.i18n.T("status.deniedPermission"), nil, envelope.PermissionError)
+	}
+	var conversations []cmodels.ConversationListItem
+	if slices.Contains(lists, cmodels.AllConversations) {
+		conversations, err = app.conversation.GetAllConversationsList(user.ID, order, orderBy, filters, page, pageSize)
+	} else {
+		conversations, err = app.conversation.GetViewConversationsList(user.ID, user.ID, agent.Teams.IDs(), lists, order, orderBy, filters, page, pageSize)
+	}
 	if err != nil {
 		return sendErrorEnvelope(r, err)
 	}
@@ -160,7 +202,12 @@ func handleGetMentionedConversations(r *fastglue.Request) error {
 	)
 	page, pageSize := getPagination(r)
 
-	conversations, err := app.conversation.GetMentionedConversationsList(user.ID, order, orderBy, filters, page, pageSize)
+	// omnichannel: only mentions in conversations the user can read (a mention does not grant access).
+	agent, err := app.user.GetAgentCachedOrLoad(user.ID)
+	if err != nil {
+		return sendErrorEnvelope(r, err)
+	}
+	conversations, err := app.conversation.GetMentionedConversationsList(user.ID, agent.Teams.IDs(), conversationAccessLists(agent.Permissions), order, orderBy, filters, page, pageSize)
 	if err != nil {
 		return sendErrorEnvelope(r, err)
 	}
@@ -220,28 +267,7 @@ func handleGetViewConversations(r *fastglue.Request) error {
 	}
 
 	// Prepare lists user has access to based on user permissions, internally this prepares the SQL query.
-	lists := []string{}
-	hasTeamAll := slices.Contains(user.Permissions, authzModels.PermConversationsReadTeamAll)
-	for _, perm := range user.Permissions {
-		if perm == authzModels.PermConversationsReadAll {
-			// No further lists required as user has access to all conversations.
-			lists = []string{cmodels.AllConversations}
-			break
-		}
-		if perm == authzModels.PermConversationsReadUnassigned {
-			lists = append(lists, cmodels.UnassignedConversations)
-		}
-		if perm == authzModels.PermConversationsReadAssigned {
-			lists = append(lists, cmodels.AssignedConversations)
-		}
-		// Skip TeamUnassignedConversations if user has TeamAllConversations (superset).
-		if perm == authzModels.PermConversationsReadTeamInbox && !hasTeamAll {
-			lists = append(lists, cmodels.TeamUnassignedConversations)
-		}
-		if perm == authzModels.PermConversationsReadTeamAll {
-			lists = append(lists, cmodels.TeamAllConversations)
-		}
-	}
+	lists := conversationAccessLists(user.Permissions)
 
 	// No lists found, user doesn't have access to any conversations.
 	if len(lists) == 0 {

@@ -48,6 +48,8 @@ type queries struct {
 	GetTeamMembers    *sqlx.Stmt `query:"get-team-members"`
 	UpsertUserTeams   *sqlx.Stmt `query:"upsert-user-teams"`
 	UserBelongsToTeam *sqlx.Stmt `query:"user-belongs-to-team"`
+	EnsureTeams       *sqlx.Stmt `query:"ensure-teams"`
+	SyncBranchTeams   *sqlx.Stmt `query:"sync-branch-teams"`
 }
 
 // New creates and returns a new instance of the Manager.
@@ -160,6 +162,35 @@ func (u *Manager) GetUserTeams(userID int) ([]models.Team, error) {
 func (u *Manager) UpsertUserTeams(id int, teamNames []string) error {
 	if _, err := u.q.UpsertUserTeams.Exec(id, pq.Array(teamNames)); err != nil {
 		u.lo.Error("error updating user teams", "error", err)
+		return envelope.NewError(envelope.GeneralError, u.i18n.T("globals.messages.somethingWentWrong"), nil)
+	}
+	return nil
+}
+
+// Omnichannel (omi): branch teams. A clinic branch is a team named BranchTeamPrefix+<branch id>; the
+// conversations of channels without a branch go to BranchAllTeam, which every agent joins.
+const (
+	BranchTeamPrefix = "branch:"
+	BranchAllTeam    = BranchTeamPrefix + "all"
+)
+
+// SyncBranchTeams sets the branch teams of an agent. all: every branch team that exists (and
+// branch:all, created when missing). Otherwise branch:<id> of each id plus branch:all, created when
+// missing with manual assignment. The agent leaves the other branch teams; teams whose name does not
+// start with "branch:" are left alone. Ids must be validated by the caller.
+func (u *Manager) SyncBranchTeams(userID int, branchIDs []string, all bool) error {
+	names := []string{BranchAllTeam}
+	if !all {
+		for _, id := range branchIDs {
+			names = append(names, BranchTeamPrefix+id)
+		}
+	}
+	if _, err := u.q.EnsureTeams.Exec(pq.Array(names)); err != nil {
+		u.lo.Error("error creating branch teams", "error", err)
+		return envelope.NewError(envelope.GeneralError, u.i18n.T("globals.messages.somethingWentWrong"), nil)
+	}
+	if _, err := u.q.SyncBranchTeams.Exec(userID, pq.Array(names), all); err != nil {
+		u.lo.Error("error syncing branch teams", "user_id", userID, "error", err)
 		return envelope.NewError(envelope.GeneralError, u.i18n.T("globals.messages.somethingWentWrong"), nil)
 	}
 	return nil
