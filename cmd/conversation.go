@@ -29,6 +29,8 @@ type assigneeChangeReq struct {
 
 type teamAssigneeChangeReq struct {
 	AssigneeID int `json:"assignee_id"`
+	// KeepUser (omi): change the team but keep the assigned agent. Absent or false: the agent is unassigned as before.
+	KeepUser bool `json:"keep_user"`
 }
 
 type priorityUpdateReq struct {
@@ -561,7 +563,11 @@ func handleUpdateTeamAssignee(r *fastglue.Request) error {
 	if conversation.AssignedTeamID.Int == assigneeID {
 		return r.SendEnvelope(true)
 	}
-	if err := app.conversation.UpdateConversationTeamAssignee(uuid, assigneeID, user); err != nil {
+	update := app.conversation.UpdateConversationTeamAssignee
+	if req.KeepUser {
+		update = app.conversation.UpdateConversationTeamAssigneeKeepUser
+	}
+	if err := update(uuid, assigneeID, user); err != nil {
 		return sendErrorEnvelope(r, err)
 	}
 
