@@ -270,6 +270,22 @@ func resolveAgent(st agentStore, req trustedSessionReq, cfg omiAPIConfig) (model
 	return u, true, nil
 }
 
+// branchRole: the roles an existing agent moves to when its clinic turns branch teams on. Before that,
+// omi-api agents were created as "Agent", which reads every conversation; trusted-session with
+// branch_ids now maps omi_role agent to a branch role (omi_api.role_map.agent). Only an agent whose
+// roles are exactly the old default ["Agent"] moves: an admin, or an agent whose roles an admin set by
+// hand, keeps them. ok false: nothing to change.
+func branchRole(req trustedSessionReq, cfg omiAPIConfig, user models.User) ([]string, bool) {
+	target := cfg.roleMap["agent"]
+	if !req.BranchIDs.Set || req.OmiRole != "agent" || target == "" || target == rmodels.RoleAgent {
+		return nil, false
+	}
+	if len(user.Roles) != 1 || user.Roles[0] != rmodels.RoleAgent {
+		return nil, false
+	}
+	return []string{target}, true
+}
+
 // appAgentStore: agentStore over the app's user manager.
 type appAgentStore struct{ app *App }
 
@@ -365,6 +381,17 @@ func handleTrustedSession(r *fastglue.Request) error {
 	}
 	if !user.Enabled {
 		return sendTrustedErr(r, fasthttp.StatusForbidden, "agent_disabled", app.i18n.T("user.accountDisabled"))
+	}
+
+	// Branch teams on: an agent still on the old default role moves to the branch role (branchRole),
+	// before the session, so the first page already reads only its branches.
+	if roles, ok := branchRole(req, cfg, user); ok && !created {
+		if err := app.user.UpdateAgent(user.ID, user.FirstName, user.LastName, user.Email.String, roles, user.Enabled, "", ""); err != nil {
+			app.lo.Error("trusted-session: moving agent to branch role", "user_id", user.ID, "error", err)
+			return sendErrorEnvelope(r, err)
+		}
+		app.user.InvalidateAgentCache(user.ID)
+		app.lo.Info("trusted-session: agent moved to branch role", "user_id", user.ID, "role", roles[0])
 	}
 
 	// Branch teams before the session: a failed sync must not leave the agent with old branches.
