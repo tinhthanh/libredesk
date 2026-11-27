@@ -385,6 +385,7 @@ func handleTrustedSession(r *fastglue.Request) error {
 
 	// Branch teams on: an agent still on the old default role moves to the branch role (branchRole),
 	// before the session, so the first page already reads only its branches.
+	agentRoles := []string(user.Roles) // logged below: why an agent did or did not move to the branch role
 	if roles, ok := branchRole(req, cfg, user); ok && !created {
 		if err := app.user.UpdateAgent(user.ID, user.FirstName, user.LastName, user.Email.String, roles, user.Enabled, "", ""); err != nil {
 			app.lo.Error("trusted-session: moving agent to branch role", "user_id", user.ID, "error", err)
@@ -392,6 +393,7 @@ func handleTrustedSession(r *fastglue.Request) error {
 		}
 		app.user.InvalidateAgentCache(user.ID)
 		app.lo.Info("trusted-session: agent moved to branch role", "user_id", user.ID, "role", roles[0])
+		agentRoles = roles
 	}
 
 	// Branch teams before the session: a failed sync must not leave the agent with old branches.
@@ -432,6 +434,7 @@ func handleTrustedSession(r *fastglue.Request) error {
 		app.lo.Error("error creating login activity log", "error", err)
 	}
 	app.lo.Info("trusted-session opened", "user_id", user.ID, "sub", req.Sub, "created", created, "placeholder", req.EmailPlaceholder,
+		"omi_role", req.OmiRole, "roles", strings.Join(agentRoles, ","),
 		"branch_ids_set", req.BranchIDs.Set, "branch_all", req.BranchIDs.All, "branch_count", len(req.BranchIDs.IDs))
 
 	return r.SendEnvelope(map[string]any{
