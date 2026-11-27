@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	rmodels "github.com/abhinavxd/libredesk/internal/role/models"
 	"github.com/abhinavxd/libredesk/internal/user/models"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/knadh/koanf/providers/confmap"
@@ -329,6 +330,36 @@ func TestTrustedSessionBranchIDs(t *testing.T) {
 	} {
 		if _, err := decodeTrustedSessionReq([]byte(base + `,"branch_ids":` + field + `}`)); err == nil {
 			t.Errorf("%s: want error", name)
+		}
+	}
+}
+
+func TestBranchRole(t *testing.T) {
+	branch := omiAPIConfig{roleMap: map[string]string{"admin": rmodels.RoleAdmin, "agent": "Nhân viên chi nhánh"}}
+	plain := omiAPIConfig{roleMap: map[string]string{"admin": rmodels.RoleAdmin, "agent": rmodels.RoleAgent}}
+	on := branchIDsField{Set: true, IDs: []string{"B7"}}
+	agent := func(roles ...string) models.User { return models.User{Roles: roles} }
+	cases := []struct {
+		name string
+		req  trustedSessionReq
+		cfg  omiAPIConfig
+		user models.User
+		want []string
+	}{
+		{"old default agent moves", trustedSessionReq{OmiRole: "agent", BranchIDs: on}, branch, agent(rmodels.RoleAgent), []string{"Nhân viên chi nhánh"}},
+		{"all branches (null) also moves", trustedSessionReq{OmiRole: "agent", BranchIDs: branchIDsField{Set: true, All: true}}, branch, agent(rmodels.RoleAgent), []string{"Nhân viên chi nhánh"}},
+		{"branch_ids absent: untouched", trustedSessionReq{OmiRole: "agent"}, branch, agent(rmodels.RoleAgent), nil},
+		{"omi_role admin: untouched", trustedSessionReq{OmiRole: "admin", BranchIDs: on}, branch, agent(rmodels.RoleAgent), nil},
+		{"role map still Agent: untouched", trustedSessionReq{OmiRole: "agent", BranchIDs: on}, plain, agent(rmodels.RoleAgent), nil},
+		{"admin role kept", trustedSessionReq{OmiRole: "agent", BranchIDs: on}, branch, agent(rmodels.RoleAdmin), nil},
+		{"hand-set role kept", trustedSessionReq{OmiRole: "agent", BranchIDs: on}, branch, agent("Kế toán"), nil},
+		{"two roles kept", trustedSessionReq{OmiRole: "agent", BranchIDs: on}, branch, agent(rmodels.RoleAgent, "Kế toán"), nil},
+		{"already on branch role", trustedSessionReq{OmiRole: "agent", BranchIDs: on}, branch, agent("Nhân viên chi nhánh"), nil},
+	}
+	for _, c := range cases {
+		got, ok := branchRole(c.req, c.cfg, c.user)
+		if ok != (c.want != nil) || strings.Join(got, ",") != strings.Join(c.want, ",") {
+			t.Errorf("%s: got %v %v, want %v", c.name, got, ok, c.want)
 		}
 	}
 }
